@@ -8,7 +8,9 @@ void solve() {
     for (long long i = 0; i < n; i++) {
         cin >> a[i]; 
     }
-    
+
+    // this problem is unsolved
+
 }
 
 int main() {

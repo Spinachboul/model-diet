@@ -1,0 +1,14 @@
+{
+    "model": "lr",
+    "training_time": 0.013429800048470497,
+    "loading_time": 0.0,
+    "accuracy": 0.9824561403508771,
+    "mean_inference_latency": 0.4691745638602266,
+    "p50_latency": 0.3695000195875764,
+    "p90_latency": 0.7023099926300347,
+    "p95_latency": 0.7169249875005335,
+    "p99_latency": 0.8406850032042718,
+    "traced_peak_memory_usage": 0.0064029693603515625,
+    "processed_rss": 168.18359375,
+    "serialized_model_size": 0.0008649826049804688
+}

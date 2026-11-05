@@ -1,0 +1,14 @@
+{
+    "model": "xgb",
+    "training_time": 0.1521104999119416,
+    "loading_time": 0.0,
+    "accuracy": 0.956140350877193,
+    "mean_inference_latency": 1.3791675538461852,
+    "p50_latency": 1.2873500236310065,
+    "p90_latency": 1.7085800063796341,
+    "p95_latency": 1.9656399847008286,
+    "p99_latency": 2.27618700126186,
+    "traced_peak_memory_usage": 0.49408721923828125,
+    "processed_rss": 173.50390625,
+    "serialized_model_size": 0.09263896942138672
+}

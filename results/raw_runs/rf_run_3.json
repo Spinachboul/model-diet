@@ -1,0 +1,14 @@
+{
+    "model": "rf",
+    "training_time": 0.1693661999888718,
+    "loading_time": 0.0,
+    "accuracy": 0.9385964912280702,
+    "mean_inference_latency": 14.062747371530062,
+    "p50_latency": 13.751499995123595,
+    "p90_latency": 18.414550076704472,
+    "p95_latency": 23.530010035028678,
+    "p99_latency": 30.613961990457042,
+    "traced_peak_memory_usage": 0.4584646224975586,
+    "processed_rss": 169.52734375,
+    "serialized_model_size": 0.3014259338378906
+}

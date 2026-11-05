@@ -28,9 +28,9 @@ if str(PROJECT_ROOT) not in sys.path:
 # MODEL IMPORTS
 # --------------------------------------------------
 
-from models.lr import LogisticRegressionModel
-from models.rf import RandomForestModel
-from models.xgb import XGBoostModel
+from model_diet.models.lr import LogisticRegressionModel
+from model_diet.models.rf import RandomForestModel
+from model_diet.models.xgb import XGBoostModel
 
 
 # --------------------------------------------------

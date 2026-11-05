@@ -6,7 +6,7 @@ import os
 
 from pathlib import Path
 
-from profiling.statistics import summarize_runs
+from model_diet.profiling.statistics import summarize_runs
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

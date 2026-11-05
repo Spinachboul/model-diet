@@ -1,4 +1,4 @@
-from model import Model
+from model_diet.model import Model
 from sklearn.ensemble import RandomForestClassifier
 
 class RandomForestModel(Model):

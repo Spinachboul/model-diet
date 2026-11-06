@@ -1,0 +1,66 @@
+
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test and demo dependencies
+        run: python -m pip install -e ".[test,demo]"
+
+      - name: Run tests
+        run: python -m pytest -v
+
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install build frontend
+        run: python -m pip install build
+
+      - name: Build wheel and source distribution
+        run: python -m build
+
+      - name: Test wheel installation
+        run: |
+          python -m venv /tmp/modeldiet-wheel
+          /tmp/modeldiet-wheel/bin/python -m pip install dist/*.whl
+          cd /tmp
+          /tmp/modeldiet-wheel/bin/python -c \
+            "from modeldiet import profile, ProfileResult; print('Wheel import successful')"
+
+      - name: Test source distribution installation
+        run: |
+          python -m venv /tmp/modeldiet-sdist
+          /tmp/modeldiet-sdist/bin/python -m pip install \
+            "$GITHUB_WORKSPACE"/dist/*.tar.gz
+          cd /tmp
+          /tmp/modeldiet-sdist/bin/python -c \
+            "from modeldiet import profile, ProfileResult; print('Source distribution import successful')"

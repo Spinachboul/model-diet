@@ -1,8 +1,4 @@
-"""Reusable measurement strategies for trained estimators.
-
-Each strategy accepts an estimator rather than a Model Diet wrapper, making
-the classes reusable with other callers and straightforward to subclass.
-"""
+"""Reusable, independently executable measurements for trained estimators."""
 from __future__ import annotations
 
 import pickle
@@ -17,11 +13,11 @@ import psutil
 
 
 class BaseMeasurement(ABC):
-    """Base interface for an individual model measurement."""
+    """Base interface for an individual model measurement strategy."""
 
     @abstractmethod
     def measure(self, model: Any, X: Any = None) -> dict[str, Any]:
-        """Measure one property of a model."""
+        """Measure one property of a model and return serializable values."""
 
 
 def _as_samples(X: Any) -> np.ndarray:
@@ -81,18 +77,14 @@ class LatencyMeasurement(BaseMeasurement):
 
 
 @dataclass(frozen=True)
-class MemoryMetrics:
-    """Python allocation peak and a process-wide RSS snapshot."""
+class TracedAllocationMetrics:
+    """Peak Python allocation observed during an inference pass."""
 
     traced_peak_inference_allocation_mb: float
-    rss_after_inference_mb: float
 
 
-class MemoryMeasurement(BaseMeasurement):
-    """Measure allocations separately from latency and capture process RSS.
-
-    RSS is for the entire process, not model-only memory or peak RSS.
-    """
+class TracedAllocationMeasurement(BaseMeasurement):
+    """Measure Python-traced allocations in a pass separate from latency."""
 
     def measure(self, model: Any, X: Any = None) -> dict[str, Any]:
         samples = _as_samples(X)
@@ -107,27 +99,58 @@ class MemoryMeasurement(BaseMeasurement):
         finally:
             tracemalloc.stop()
 
-        rss_bytes = psutil.Process().memory_info().rss
         return asdict(
-            MemoryMetrics(
+            TracedAllocationMetrics(
                 traced_peak_inference_allocation_mb=float(
                     peak_bytes / (1024.0 * 1024.0)
-                ),
-                rss_after_inference_mb=float(rss_bytes / (1024.0 * 1024.0)),
+                )
+            )
+        )
+
+
+@dataclass(frozen=True)
+class ProcessRSSMetrics:
+    """Process-wide resident set size snapshots, in megabytes."""
+
+    rss_before_inference_mb: float
+    rss_after_inference_mb: float
+    rss_delta_mb: float
+
+
+class ProcessRSSMeasurement(BaseMeasurement):
+    """Measure process RSS before and after a separate inference pass.
+
+    These values describe the entire Python process, not the model alone.
+    This records endpoint snapshots, not peak RSS during inference.
+    """
+
+    def measure(self, model: Any, X: Any = None) -> dict[str, Any]:
+        samples = _as_samples(X)
+        process = psutil.Process()
+        rss_before = process.memory_info().rss
+        for sample in samples:
+            model.predict(sample.reshape(1, -1))
+        rss_after = process.memory_info().rss
+        mb = 1024.0 * 1024.0
+        return asdict(
+            ProcessRSSMetrics(
+                rss_before_inference_mb=float(rss_before / mb),
+                rss_after_inference_mb=float(rss_after / mb),
+                rss_delta_mb=float((rss_after - rss_before) / mb),
             )
         )
 
 
 @dataclass(frozen=True)
 class SerializationMetrics:
-    """Serialized artifact size and format."""
+    """Serialized model artifact size and format."""
 
     serialized_model_size_mb: float
     serialization_format: str
 
 
 class SerializationMeasurement(BaseMeasurement):
-    """Measure the size of a Python-pickle representation of a model."""
+    """Measure the size of the model when serialized using Python pickle."""
 
     def measure(self, model: Any, X: Any = None) -> dict[str, Any]:
         del X

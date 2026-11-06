@@ -2,7 +2,6 @@ import json
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 
 from model_diet.profiling.isolated_runner import run_model
 
@@ -15,10 +14,7 @@ class DummyClassifier:
         return np.zeros(len(X), dtype=int)
 
 
-@pytest.fixture
-def mock_model():
-    """Create a lightweight model with the attributes expected by the runner."""
-
+def _make_dummy_model():
     class DummyModel:
         def __init__(self):
             self.clf = DummyClassifier()
@@ -51,9 +47,7 @@ def mock_model():
     return DummyModel()
 
 
-@pytest.fixture
-def mock_dataset():
-    """Provide deterministic training and test data."""
+def _make_dataset():
     X_train = np.array([[1, 2], [3, 4], [5, 6]])
     X_test = np.array([[7, 8], [9, 10]])
     y_train = np.array([0, 1, 0])
@@ -61,50 +55,65 @@ def mock_dataset():
     return X_train, X_test, X_train, X_test, y_train, y_test
 
 
-@pytest.fixture
-def patched_runner(mock_model, mock_dataset):
-    """Patch model creation, data loading, and environment collection."""
-    with (
-        patch(
-            "model_diet.profiling.isolated_runner.create_model",
-            return_value=mock_model,
-        ),
-        patch(
-            "model_diet.profiling.isolated_runner.load_dataset",
-            return_value=mock_dataset,
-        ),
-        patch(
-            "model_diet.profiling.isolated_runner.EnvironmentMeasurement.measure",
-            return_value={"python_version": "test"},
-        ),
+def test_loading_time_is_recorded(tmp_path):
+    model = _make_dummy_model()
+    with patch(
+        "model_diet.profiling.isolated_runner.create_model", return_value=model
+    ), patch(
+        "model_diet.profiling.isolated_runner.load_dataset", return_value=_make_dataset()
+    ), patch(
+        "model_diet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+        return_value={"python_version": "test"},
     ):
-        yield mock_model
-
-
-def test_loading_time_is_recorded(tmp_path, patched_runner):
-    """Deserialization time should be populated and non-negative."""
-    results = run_model("lr", tmp_path / "result.json")
+        results = run_model("lr", tmp_path / "result.json")
     assert results["loading_time"] >= 0
-    assert patched_runner.loading_time == results["loading_time"]
+    assert model.loading_time == results["loading_time"]
 
 
-def test_training_time_is_recorded(tmp_path, patched_runner):
-    results = run_model("lr", tmp_path / "result.json")
+def test_training_time_is_recorded(tmp_path):
+    model = _make_dummy_model()
+    with patch(
+        "model_diet.profiling.isolated_runner.create_model", return_value=model
+    ), patch(
+        "model_diet.profiling.isolated_runner.load_dataset", return_value=_make_dataset()
+    ), patch(
+        "model_diet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+        return_value={"python_version": "test"},
+    ):
+        results = run_model("lr", tmp_path / "result.json")
     assert results["training_time"] >= 0
 
 
-def test_accuracy_is_valid(tmp_path, patched_runner):
-    results = run_model("lr", tmp_path / "result.json")
+def test_accuracy_is_valid(tmp_path):
+    model = _make_dummy_model()
+    with patch(
+        "model_diet.profiling.isolated_runner.create_model", return_value=model
+    ), patch(
+        "model_diet.profiling.isolated_runner.load_dataset", return_value=_make_dataset()
+    ), patch(
+        "model_diet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+        return_value={"python_version": "test"},
+    ):
+        results = run_model("lr", tmp_path / "result.json")
     assert 0.0 <= results["accuracy"] <= 1.0
 
 
-def test_output_json_contains_expected_fields(tmp_path, patched_runner):
+def test_output_json_contains_explicit_measurements(tmp_path):
+    model = _make_dummy_model()
     output_path = tmp_path / "result.json"
-    results = run_model("lr", output_path)
+    with patch(
+        "model_diet.profiling.isolated_runner.create_model", return_value=model
+    ), patch(
+        "model_diet.profiling.isolated_runner.load_dataset", return_value=_make_dataset()
+    ), patch(
+        "model_diet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+        return_value={"python_version": "test"},
+    ):
+        results = run_model("lr", output_path)
+
     assert output_path.exists()
     with open(output_path, "r") as file:
         saved_results = json.load(file)
-
     expected_fields = {
         "model",
         "training_time",

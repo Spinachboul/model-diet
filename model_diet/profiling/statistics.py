@@ -46,11 +46,12 @@ def summarize_runs(runs):
     summary = {}
     for metric in metrics:
         legacy_name = legacy_names.get(metric)
-        values = [
-            run[metric] if metric in run else run.get(legacy_name)
-            for run in runs
-            if metric in run or (legacy_name is not None and legacy_name in run)
-        ]
+        values = []
+        for run in runs:
+            if metric in run:
+                values.append(run[metric])
+            elif legacy_name is not None and legacy_name in run:
+                values.append(run[legacy_name])
         values = [value for value in values if value is not None]
         if values:
             summary[metric] = calculate_statistics(values)

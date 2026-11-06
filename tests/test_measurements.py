@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from model_diet.model import Model
-from model_diet.profiling.measurements import (
+from modeldiet.model import Model
+from modeldiet.profiling.measurements import (
     BaseMeasurement,
     LatencyMeasurement,
     ProcessRSSMeasurement,

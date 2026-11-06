@@ -5,8 +5,8 @@ import sys
 import numpy as np
 import pytest
 
-from model_diet import ProfileResult, profile
-from model_diet.profiling.measurements import BaseMeasurement, LatencyMeasurement
+from modeldiet import ProfileResult, profile
+from modeldiet.profiling.measurements import BaseMeasurement, LatencyMeasurement
 
 
 class EchoModel:

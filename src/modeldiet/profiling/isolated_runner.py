@@ -11,10 +11,10 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from model_diet.models.lr import LogisticRegressionModel
-from model_diet.models.rf import RandomForestModel
-from model_diet.models.xgb import XGBoostModel
-from model_diet.profiling.environment import EnvironmentMeasurement
+from modeldiet.models.lr import LogisticRegressionModel
+from modeldiet.models.rf import RandomForestModel
+from modeldiet.models.xgb import XGBoostModel
+from modeldiet.profiling.environment import EnvironmentMeasurement
 
 
 def create_model(model_name):

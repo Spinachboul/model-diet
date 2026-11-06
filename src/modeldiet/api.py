@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Literal, Sequence
 
-from model_diet.profiling.measurements import BaseMeasurement, LatencyMeasurement
-from model_diet.profiling.orchestrator import run_measurements
-from model_diet.result import ProfileResult
+from modeldiet.profiling.measurements import BaseMeasurement, LatencyMeasurement
+from modeldiet.profiling.orchestrator import run_measurements
+from modeldiet.result import ProfileResult
 
 
 def profile(
@@ -37,7 +37,7 @@ def profile(
     if include_environment:
         from dataclasses import replace
 
-        from model_diet.profiling.environment import collect_environment
+        from modeldiet.profiling.environment import collect_environment
 
         return replace(result, environment=collect_environment())
     return result

@@ -58,13 +58,13 @@ def _make_dataset():
 def test_loading_time_is_recorded(tmp_path):
     model = _make_dummy_model()
     with (
-        patch("model_diet.profiling.isolated_runner.create_model", return_value=model),
+        patch("modeldiet.profiling.isolated_runner.create_model", return_value=model),
         patch(
-            "model_diet.profiling.isolated_runner.load_dataset",
+            "modeldiet.profiling.isolated_runner.load_dataset",
             return_value=_make_dataset(),
         ),
         patch(
-            "model_diet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+            "modeldiet.profiling.isolated_runner.EnvironmentMeasurement.measure",
             return_value={"python_version": "test"},
         ),
     ):
@@ -76,13 +76,13 @@ def test_loading_time_is_recorded(tmp_path):
 def test_training_time_is_recorded(tmp_path):
     model = _make_dummy_model()
     with (
-        patch("model_diet.profiling.isolated_runner.create_model", return_value=model),
+        patch("modeldiet.profiling.isolated_runner.create_model", return_value=model),
         patch(
-            "model_diet.profiling.isolated_runner.load_dataset",
+            "modeldiet.profiling.isolated_runner.load_dataset",
             return_value=_make_dataset(),
         ),
         patch(
-            "model_diet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+            "modeldiet.profiling.isolated_runner.EnvironmentMeasurement.measure",
             return_value={"python_version": "test"},
         ),
     ):
@@ -93,13 +93,13 @@ def test_training_time_is_recorded(tmp_path):
 def test_accuracy_is_valid(tmp_path):
     model = _make_dummy_model()
     with (
-        patch("model_diet.profiling.isolated_runner.create_model", return_value=model),
+        patch("modeldiet.profiling.isolated_runner.create_model", return_value=model),
         patch(
-            "model_diet.profiling.isolated_runner.load_dataset",
+            "modeldiet.profiling.isolated_runner.load_dataset",
             return_value=_make_dataset(),
         ),
         patch(
-            "model_diet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+            "modeldiet.profiling.isolated_runner.EnvironmentMeasurement.measure",
             return_value={"python_version": "test"},
         ),
     ):
@@ -111,13 +111,13 @@ def test_output_json_contains_explicit_measurements(tmp_path):
     model = _make_dummy_model()
     output_path = tmp_path / "result.json"
     with (
-        patch("model_diet.profiling.isolated_runner.create_model", return_value=model),
+        patch("modeldiet.profiling.isolated_runner.create_model", return_value=model),
         patch(
-            "model_diet.profiling.isolated_runner.load_dataset",
+            "modeldiet.profiling.isolated_runner.load_dataset",
             return_value=_make_dataset(),
         ),
         patch(
-            "model_diet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+            "modeldiet.profiling.isolated_runner.EnvironmentMeasurement.measure",
             return_value={"python_version": "test"},
         ),
     ):

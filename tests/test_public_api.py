@@ -91,7 +91,7 @@ def test_exports_and_optional_dependency_isolation(tmp_path):
         [
             sys.executable,
             "-c",
-            "import sys; import model_diet; assert 'sklearn' not in sys.modules; assert 'xgboost' not in sys.modules",
+            "import sys; import modeldiet; assert 'sklearn' not in sys.modules; assert 'xgboost' not in sys.modules",
         ],
         check=False,
         capture_output=True,

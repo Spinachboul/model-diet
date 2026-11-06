@@ -6,8 +6,9 @@ from typing import Any
 from model_diet.profiling.measurements import (
     BaseMeasurement,
     LatencyMeasurement,
-    MemoryMeasurement,
+    ProcessRSSMeasurement,
     SerializationMeasurement,
+    TracedAllocationMeasurement,
 )
 
 
@@ -30,11 +31,11 @@ class Model:
         processed_rss: float = 0.0,
         serialized_model_size: float = 0.0,
         latency_measurement: BaseMeasurement | None = None,
-        memory_measurement: BaseMeasurement | None = None,
+        allocation_measurement: BaseMeasurement | None = None,
+        rss_measurement: BaseMeasurement | None = None,
         serialization_measurement: BaseMeasurement | None = None,
     ) -> None:
-        # Loading time is retained for compatibility with the demo runner.
-        # It must represent a timed artifact deserialization operation.
+        # Loading time belongs to the artifact deserialization operation.
         self.loading_time = loading_time
         self.mean_inference_latency = mean_inference_latency
         self.p50_latency = p50_latency
@@ -53,8 +54,15 @@ class Model:
             if latency_measurement is not None
             else LatencyMeasurement()
         )
-        self.memory_measurement = (
-            memory_measurement if memory_measurement is not None else MemoryMeasurement()
+        self.allocation_measurement = (
+            allocation_measurement
+            if allocation_measurement is not None
+            else TracedAllocationMeasurement()
+        )
+        self.rss_measurement = (
+            rss_measurement
+            if rss_measurement is not None
+            else ProcessRSSMeasurement()
         )
         self.serialization_measurement = (
             serialization_measurement
@@ -65,15 +73,15 @@ class Model:
     def profile_execution(
         self, X_test: Any, load_start_time: float | None = None
     ) -> dict[str, dict[str, Any]]:
-        """Run latency, memory, and serialization experiments independently.
+        """Run each measurement as an independent experiment.
 
-        ``load_start_time`` is accepted for backwards compatibility only. An
-        already-loaded model has no measurable historical load duration; callers
-        should time deserialization at the point where it occurs.
+        ``load_start_time`` remains accepted for backwards compatibility. An
+        already-loaded model has no measurable historical load duration.
         """
         del load_start_time
         latency = self.latency_measurement.measure(self.clf, X_test)
-        memory = self.memory_measurement.measure(self.clf, X_test)
+        allocation = self.allocation_measurement.measure(self.clf, X_test)
+        process_memory = self.rss_measurement.measure(self.clf, X_test)
         serialization = self.serialization_measurement.measure(self.clf)
 
         self.mean_inference_latency = latency["mean_ms"]
@@ -81,18 +89,18 @@ class Model:
         self.p90_latency = latency["p90_ms"]
         self.p95_latency = latency["p95_ms"]
         self.p99_latency = latency["p99_ms"]
-
-        self.traced_peak_inference_allocation_mb = memory[
+        self.traced_peak_inference_allocation_mb = allocation[
             "traced_peak_inference_allocation_mb"
         ]
-        self.rss_after_inference_mb = memory["rss_after_inference_mb"]
-        # Preserve attributes consumed by older report code during migration.
+        self.rss_after_inference_mb = process_memory["rss_after_inference_mb"]
+        # Temporary aliases keep existing external report code working.
         self.traced_peak_memory_usage = self.traced_peak_inference_allocation_mb
         self.processed_rss = self.rss_after_inference_mb
         self.serialized_model_size = serialization["serialized_model_size_mb"]
 
         return {
             "latency": latency,
-            "memory": memory,
+            "allocation": allocation,
+            "process_memory": process_memory,
             "serialization": serialization,
         }

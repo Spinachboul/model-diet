@@ -48,9 +48,7 @@ def test_latency_measurement_rejects_non_2d_input():
 
 
 def test_traced_allocation_measurement_runs_without_latency_timer():
-    result = TracedAllocationMeasurement().measure(
-        DummyEstimator(), np.ones((5, 3))
-    )
+    result = TracedAllocationMeasurement().measure(DummyEstimator(), np.ones((5, 3)))
     assert result["traced_peak_inference_allocation_mb"] >= 0
 
 
@@ -87,9 +85,7 @@ def test_model_accepts_custom_measurement_objects():
             "sample_count": 4,
         }
     )
-    allocation = FixedMeasurement(
-        {"traced_peak_inference_allocation_mb": 2.0}
-    )
+    allocation = FixedMeasurement({"traced_peak_inference_allocation_mb": 2.0})
     rss = FixedMeasurement(
         {
             "rss_before_inference_mb": 50.0,
@@ -122,6 +118,5 @@ def test_model_accepts_custom_measurement_objects():
     assert model.rss_delta_mb == 1.0
     assert model.serialized_model_size == 0.25
     assert all(
-        strategy.calls == 1
-        for strategy in (latency, allocation, rss, serialization)
+        strategy.calls == 1 for strategy in (latency, allocation, rss, serialization)
     )

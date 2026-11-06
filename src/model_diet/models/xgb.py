@@ -10,7 +10,7 @@ class XGBoostModel(Model):
         max_depth: int = 6,
         learning_rate: float = 0.3,
         subsample: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         # Passes all telemetry tracking metrics straight to the base class
         super().__init__(**kwargs)

@@ -35,7 +35,6 @@ class Model:
         rss_measurement: BaseMeasurement | None = None,
         serialization_measurement: BaseMeasurement | None = None,
     ) -> None:
-        # Loading time belongs to the artifact deserialization operation.
         self.loading_time = loading_time
         self.mean_inference_latency = mean_inference_latency
         self.p50_latency = p50_latency
@@ -43,7 +42,9 @@ class Model:
         self.p95_latency = p95_latency
         self.p99_latency = p99_latency
         self.traced_peak_inference_allocation_mb = traced_peak_memory_usage
+        self.rss_before_inference_mb = processed_rss
         self.rss_after_inference_mb = processed_rss
+        self.rss_delta_mb = 0.0
         self.traced_peak_memory_usage = traced_peak_memory_usage  # compatibility
         self.processed_rss = processed_rss  # compatibility
         self.serialized_model_size = serialized_model_size
@@ -92,8 +93,9 @@ class Model:
         self.traced_peak_inference_allocation_mb = allocation[
             "traced_peak_inference_allocation_mb"
         ]
+        self.rss_before_inference_mb = process_memory["rss_before_inference_mb"]
         self.rss_after_inference_mb = process_memory["rss_after_inference_mb"]
-        # Temporary aliases keep existing external report code working.
+        self.rss_delta_mb = process_memory["rss_delta_mb"]
         self.traced_peak_memory_usage = self.traced_peak_inference_allocation_mb
         self.processed_rss = self.rss_after_inference_mb
         self.serialized_model_size = serialization["serialized_model_size_mb"]

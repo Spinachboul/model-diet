@@ -1,7 +1,6 @@
 import argparse
 import json
 import pickle
-import sys
 import tempfile
 import time
 import traceback
@@ -17,14 +16,9 @@ from model_diet.models.rf import RandomForestModel
 from model_diet.models.xgb import XGBoostModel
 from model_diet.profiling.environment import EnvironmentMeasurement
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 
 def create_model(model_name):
-    """Create one of the estimators used by the repository demo."""
+    """Create one of the estimators used by the repository demonstration."""
     if model_name == "lr":
         return LogisticRegressionModel(C=1.0, max_iter=1000)
     if model_name == "rf":
@@ -49,7 +43,7 @@ def load_dataset():
 
 def run_model(model_name, output_path):
     """Run one isolated demonstration benchmark and write JSON results."""
-    print("\\n" + "=" * 60)
+    print("\n" + "=" * 60)
     print(f"STARTING ISOLATED PROCESS: {model_name.upper()}")
     print("=" * 60)
 
@@ -63,7 +57,7 @@ def run_model(model_name, output_path):
     training_start = time.perf_counter()
     model.clf.fit(train_data, y_train)
     training_time = time.perf_counter() - training_start
-    print(f"\\nTraining Time: {training_time:.6f} seconds")
+    print(f"\nTraining Time: {training_time:.6f} seconds")
 
     # This measures pickle deserialization only, not process startup/imports.
     with tempfile.NamedTemporaryFile(suffix=".pkl") as temp_file:
@@ -74,10 +68,10 @@ def run_model(model_name, output_path):
             model.clf = pickle.load(file)
         model.loading_time = time.perf_counter() - load_start
 
-    print(f"\\nModel Deserialization Time: {model.loading_time:.6f} seconds")
+    print(f"\nModel Deserialization Time: {model.loading_time:.6f} seconds")
 
-    # Each strategy executes its own experiment. Latency is never measured
-    # while tracemalloc is active.
+    # Each strategy performs an independent pass. Latency is measured without
+    # tracemalloc; Python allocations and RSS are collected in separate passes.
     measurements = model.profile_execution(test_data)
     predictions = model.clf.predict(test_data)
     accuracy = accuracy_score(y_test, predictions)
@@ -96,7 +90,9 @@ def run_model(model_name, output_path):
         "traced_peak_inference_allocation_mb": float(
             model.traced_peak_inference_allocation_mb
         ),
+        "rss_before_inference_mb": float(model.rss_before_inference_mb),
         "rss_after_inference_mb": float(model.rss_after_inference_mb),
+        "rss_delta_mb": float(model.rss_delta_mb),
         "serialized_model_size": float(model.serialized_model_size),
         "measurement_details": measurements,
         "environment": environment,
@@ -107,7 +103,7 @@ def run_model(model_name, output_path):
     with open(output_path, "w") as file:
         json.dump(results, file, indent=4)
 
-    print("\\n" + "=" * 60)
+    print("\n" + "=" * 60)
     print(f"{model_name.upper()} MODEL REPORT")
     print("=" * 60)
     print(f"Accuracy                         : {accuracy * 100:.2f}%")
@@ -119,9 +115,13 @@ def run_model(model_name, output_path):
         "Traced Peak Inference Allocation: "
         f"{model.traced_peak_inference_allocation_mb:.4f} MB"
     )
-    print(f"Process RSS After Inference      : {model.rss_after_inference_mb:.2f} MB")
-    print(f"Serialized Model Size            : {model.serialized_model_size:.4f} MB")
-    print("\\nResults saved to:", output_path)
+    print(
+        "Process RSS Before / After     : "
+        f"{model.rss_before_inference_mb:.2f} / {model.rss_after_inference_mb:.2f} MB"
+    )
+    print(f"Process RSS Delta                : {model.rss_delta_mb:.4f} MB")
+    print(f"Pickle Serialized Model Size     : {model.serialized_model_size:.4f} MB")
+    print("\nResults saved to:", output_path)
     return results
 
 
@@ -135,9 +135,9 @@ def main():
     try:
         run_model(model_name=args.model, output_path=args.output)
     except Exception as error:
-        print("\\nERROR:", str(error))
+        print("\nERROR:", str(error))
         traceback.print_exc()
-        sys.exit(1)
+        raise SystemExit(1) from error
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from model_diet.profiling.measurements import (
+    BaseMeasurement,
     LatencyMeasurement,
     MemoryMeasurement,
     SerializationMeasurement,
@@ -14,8 +15,7 @@ class Model:
     """Compatibility wrapper around a trained estimator.
 
     Estimator-specific subclasses provide ``clf``. Measurement strategies are
-    independent objects that can be reused or subclassed without inheriting
-    from this wrapper.
+    independent objects that can be reused, injected, or subclassed by callers.
     """
 
     def __init__(
@@ -29,6 +29,9 @@ class Model:
         traced_peak_memory_usage: float = 0.0,
         processed_rss: float = 0.0,
         serialized_model_size: float = 0.0,
+        latency_measurement: BaseMeasurement | None = None,
+        memory_measurement: BaseMeasurement | None = None,
+        serialization_measurement: BaseMeasurement | None = None,
     ) -> None:
         # Loading time is retained for compatibility with the demo runner.
         # It must represent a timed artifact deserialization operation.
@@ -45,25 +48,33 @@ class Model:
         self.serialized_model_size = serialized_model_size
 
         self.clf: Any = None
-        self.measurements = (
-            LatencyMeasurement(),
-            MemoryMeasurement(),
-            SerializationMeasurement(),
+        self.latency_measurement = (
+            latency_measurement
+            if latency_measurement is not None
+            else LatencyMeasurement()
+        )
+        self.memory_measurement = (
+            memory_measurement if memory_measurement is not None else MemoryMeasurement()
+        )
+        self.serialization_measurement = (
+            serialization_measurement
+            if serialization_measurement is not None
+            else SerializationMeasurement()
         )
 
     def profile_execution(
         self, X_test: Any, load_start_time: float | None = None
     ) -> dict[str, dict[str, Any]]:
-        """Run latency, memory, and serialization measurements independently.
+        """Run latency, memory, and serialization experiments independently.
 
         ``load_start_time`` is accepted for backwards compatibility only. An
         already-loaded model has no measurable historical load duration; callers
         should time deserialization at the point where it occurs.
         """
         del load_start_time
-        latency = self.measurements[0].measure(self.clf, X_test)
-        memory = self.measurements[1].measure(self.clf, X_test)
-        serialization = self.measurements[2].measure(self.clf)
+        latency = self.latency_measurement.measure(self.clf, X_test)
+        memory = self.memory_measurement.measure(self.clf, X_test)
+        serialization = self.serialization_measurement.measure(self.clf)
 
         self.mean_inference_latency = latency["mean_ms"]
         self.p50_latency = latency["p50_ms"]
@@ -75,7 +86,7 @@ class Model:
             "traced_peak_inference_allocation_mb"
         ]
         self.rss_after_inference_mb = memory["rss_after_inference_mb"]
-        # Preserve attributes consumed by older report code for this transition.
+        # Preserve attributes consumed by older report code during migration.
         self.traced_peak_memory_usage = self.traced_peak_inference_allocation_mb
         self.processed_rss = self.rss_after_inference_mb
         self.serialized_model_size = serialization["serialized_model_size_mb"]

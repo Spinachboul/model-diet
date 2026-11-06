@@ -1,4 +1,5 @@
 """Model wrapper that delegates profiling to independent measurements."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -61,9 +62,7 @@ class Model:
             else TracedAllocationMeasurement()
         )
         self.rss_measurement = (
-            rss_measurement
-            if rss_measurement is not None
-            else ProcessRSSMeasurement()
+            rss_measurement if rss_measurement is not None else ProcessRSSMeasurement()
         )
         self.serialization_measurement = (
             serialization_measurement

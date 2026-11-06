@@ -5,7 +5,7 @@ from pathlib import Path
 
 from model_diet.profiling.statistics import summarize_runs
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_ROOT = REPOSITORY_ROOT / "model_diet"
 RESULT_DIR = PACKAGE_ROOT / "results"
 RAW_DIR = RESULT_DIR / "raw_runs"
@@ -26,8 +26,7 @@ def run_repeated_benchmark(model_name, repetitions=10):
 
     for iteration in range(1, repetitions + 1):
         print(
-            f"\nRunning {model_name.upper()} "
-            f"- Iteration {iteration}/{repetitions}"
+            f"\nRunning {model_name.upper()} " f"- Iteration {iteration}/{repetitions}"
         )
         output_file = RAW_DIR / f"{model_name}_run_{iteration}.json"
         command = [

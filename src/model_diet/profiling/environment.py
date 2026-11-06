@@ -1,20 +1,20 @@
 import os
 import platform
 import sys
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 import numpy as np
 import psutil
-import sklearn
 
 from model_diet.profiling.measurements import BaseMeasurement
 
-try:
-    import xgboost
 
-    XGBOOST_VERSION: str | None = xgboost.__version__
-except ImportError:
-    XGBOOST_VERSION = None
+def _package_version(distribution: str) -> str | None:
+    try:
+        return version(distribution)
+    except PackageNotFoundError:
+        return None
 
 
 def collect_environment() -> dict[str, Any]:
@@ -29,8 +29,8 @@ def collect_environment() -> dict[str, Any]:
         "total_ram_gb": round(psutil.virtual_memory().total / (1024**3), 2),
         "cpu_frequency_mhz": cpu_frequency.current if cpu_frequency else None,
         "numpy_version": np.__version__,
-        "sklearn_version": sklearn.__version__,
-        "xgboost_version": XGBOOST_VERSION,
+        "sklearn_version": _package_version("scikit-learn"),
+        "xgboost_version": _package_version("xgboost"),
         "thread_environment": {
             key: os.environ.get(key)
             for key in (

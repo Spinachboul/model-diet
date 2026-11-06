@@ -1,4 +1,5 @@
 """Reusable, independently executable measurements for trained estimators."""
+
 from __future__ import annotations
 
 import pickle
@@ -20,15 +21,29 @@ class BaseMeasurement(ABC):
         """Measure one property of a model and return serializable values."""
 
 
-def _as_samples(X: Any) -> np.ndarray:
-    """Convert pandas/array input to a validated 2D NumPy array."""
-    values = X.to_numpy() if hasattr(X, "to_numpy") else np.asarray(X)
-    values = np.asarray(values)
-    if values.ndim != 2:
+def _validate_samples(X: Any) -> int:
+    """Validate tabular shape without coercing or replacing the caller's input."""
+    shape = getattr(X, "shape", None)
+    if shape is not None and len(shape) != 2:
         raise ValueError("X must be 2D with shape (n_samples, n_features)")
-    if values.shape[0] == 0:
+    if not isinstance(X, (list, tuple)) and shape is None:
+        raise TypeError("X must be a NumPy array, DataFrame, or list of rows")
+    if not isinstance(X, (list, tuple)) and shape is not None:
+        count = int(shape[0])
+    else:
+        count = len(X)
+        if count and not isinstance(X[0], (list, tuple)):
+            raise ValueError("X must be 2D with shape (n_samples, n_features)")
+    if count == 0:
         raise ValueError("X must contain at least one sample")
-    return values
+    return count
+
+
+def _sample(X: Any, index: int) -> Any:
+    """Return one row with a batch dimension while preserving input type."""
+    if hasattr(X, "iloc"):
+        return X.iloc[index : index + 1]
+    return X[index : index + 1]
 
 
 @dataclass(frozen=True)
@@ -44,6 +59,7 @@ class LatencyMetrics:
 
 
 class LatencyMeasurement(BaseMeasurement):
+    name = "latency"
     """Measure per-sample prediction latency without tracemalloc enabled."""
 
     def __init__(self, warmup_iterations: int = 1) -> None:
@@ -52,15 +68,14 @@ class LatencyMeasurement(BaseMeasurement):
         self.warmup_iterations = warmup_iterations
 
     def measure(self, model: Any, X: Any = None) -> dict[str, Any]:
-        samples = _as_samples(X)
+        sample_count = _validate_samples(X)
         for _ in range(self.warmup_iterations):
-            model.predict(samples[0:1])
+            model.predict(_sample(X, 0))
 
         latencies = []
-        for sample in samples:
-            sample_input = sample.reshape(1, -1)
+        for index in range(sample_count):
             start = time.perf_counter()
-            model.predict(sample_input)
+            model.predict(_sample(X, index))
             latencies.append((time.perf_counter() - start) * 1000.0)
 
         values = np.asarray(latencies, dtype=float)
@@ -71,7 +86,7 @@ class LatencyMeasurement(BaseMeasurement):
                 p90_ms=float(np.percentile(values, 90)),
                 p95_ms=float(np.percentile(values, 95)),
                 p99_ms=float(np.percentile(values, 99)),
-                sample_count=int(values.size),
+                sample_count=len(latencies),
             )
         )
 
@@ -84,17 +99,18 @@ class TracedAllocationMetrics:
 
 
 class TracedAllocationMeasurement(BaseMeasurement):
+    name = "python_traced_allocation"
     """Measure Python-traced allocations in a pass separate from latency."""
 
     def measure(self, model: Any, X: Any = None) -> dict[str, Any]:
-        samples = _as_samples(X)
+        sample_count = _validate_samples(X)
         if tracemalloc.is_tracing():
             raise RuntimeError("tracemalloc is already active in this process")
 
         tracemalloc.start()
         try:
-            for sample in samples:
-                model.predict(sample.reshape(1, -1))
+            for index in range(sample_count):
+                model.predict(_sample(X, index))
             _, peak_bytes = tracemalloc.get_traced_memory()
         finally:
             tracemalloc.stop()
@@ -118,6 +134,7 @@ class ProcessRSSMetrics:
 
 
 class ProcessRSSMeasurement(BaseMeasurement):
+    name = "process_rss"
     """Measure process RSS before and after a separate inference pass.
 
     These values describe the entire Python process, not the model alone.
@@ -125,11 +142,11 @@ class ProcessRSSMeasurement(BaseMeasurement):
     """
 
     def measure(self, model: Any, X: Any = None) -> dict[str, Any]:
-        samples = _as_samples(X)
+        sample_count = _validate_samples(X)
         process = psutil.Process()
         rss_before = process.memory_info().rss
-        for sample in samples:
-            model.predict(sample.reshape(1, -1))
+        for index in range(sample_count):
+            model.predict(_sample(X, index))
         rss_after = process.memory_info().rss
         mb = 1024.0 * 1024.0
         return asdict(
@@ -150,6 +167,7 @@ class SerializationMetrics:
 
 
 class SerializationMeasurement(BaseMeasurement):
+    name = "pickle_size"
     """Measure the size of the model when serialized using Python pickle."""
 
     def measure(self, model: Any, X: Any = None) -> dict[str, Any]:
@@ -157,9 +175,7 @@ class SerializationMeasurement(BaseMeasurement):
         serialized = pickle.dumps(model)
         return asdict(
             SerializationMetrics(
-                serialized_model_size_mb=float(
-                    len(serialized) / (1024.0 * 1024.0)
-                ),
+                serialized_model_size_mb=float(len(serialized) / (1024.0 * 1024.0)),
                 serialization_format="pickle",
             )
         )

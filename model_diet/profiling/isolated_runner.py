@@ -1,7 +1,6 @@
 import argparse
 import json
 import pickle
-import sys
 import tempfile
 import time
 import traceback
@@ -15,137 +14,68 @@ from sklearn.preprocessing import StandardScaler
 from model_diet.models.lr import LogisticRegressionModel
 from model_diet.models.rf import RandomForestModel
 from model_diet.models.xgb import XGBoostModel
-
-# --------------------------------------------------
-# PROJECT PATH CONFIGURATION
-# --------------------------------------------------
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-# --------------------------------------------------
-# MODEL FACTORY
-# --------------------------------------------------
+from model_diet.profiling.environment import EnvironmentMeasurement
 
 
 def create_model(model_name):
-
+    """Create one of the estimators used by the repository demonstration."""
     if model_name == "lr":
         return LogisticRegressionModel(C=1.0, max_iter=1000)
-
-    elif model_name == "rf":
+    if model_name == "rf":
         return RandomForestModel(n_estimators=100, max_depth=None)
-
-    elif model_name == "xgb":
+    if model_name == "xgb":
         return XGBoostModel(n_estimators=100, max_depth=6, learning_rate=0.3)
-
-    else:
-        raise ValueError(f"Unsupported model: {model_name}")
-
-
-# --------------------------------------------------
-# DATASET LOADING
-# --------------------------------------------------
+    raise ValueError(f"Unsupported model: {model_name}")
 
 
 def load_dataset():
-
+    """Load the example dataset and prepare train/test splits."""
     data = load_breast_cancer(as_frame=True)
-
-    X = data.data
-    y = data.target
-
+    X, y = data.data, data.target
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
-
-    # Scale only the data used by Logistic Regression.
-    # Tree models retain their original DataFrame inputs.
-
     scaler = StandardScaler()
-
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
-
-    return (X_train, X_test, X_train_scaled, X_test_scaled, y_train, y_test)
-
-
-# --------------------------------------------------
-# MODEL EXECUTION
-# --------------------------------------------------
+    return X_train, X_test, X_train_scaled, X_test_scaled, y_train, y_test
 
 
 def run_model(model_name, output_path):
-
+    """Run one isolated demonstration benchmark and write JSON results."""
     print("\n" + "=" * 60)
     print(f"STARTING ISOLATED PROCESS: {model_name.upper()}")
     print("=" * 60)
 
-    # 1. Load dataset
-
-    (X_train, X_test, X_train_scaled, X_test_scaled, y_train, y_test) = load_dataset()
-
-    # 2. Create model
-
+    X_train, X_test, X_train_scaled, X_test_scaled, y_train, y_test = load_dataset()
     model = create_model(model_name)
-
-    # 3. Select appropriate dataset
-
     if model_name == "lr":
-
-        train_data = X_train_scaled
-        test_data = X_test_scaled
-
+        train_data, test_data = X_train_scaled, X_test_scaled
     else:
-
-        train_data = X_train
-        test_data = X_test
-
-    # 4. Measure training time
+        train_data, test_data = X_train, X_test
 
     training_start = time.perf_counter()
-
     model.clf.fit(train_data, y_train)
-
-    training_end = time.perf_counter()
-
-    training_time = training_end - training_start
-
+    training_time = time.perf_counter() - training_start
     print(f"\nTraining Time: {training_time:.6f} seconds")
 
-    # save and reload trained model to measure the loading time
+    # This measures pickle deserialization only, not process startup/imports.
     with tempfile.NamedTemporaryFile(suffix=".pkl") as temp_file:
         with open(temp_file.name, "wb") as file:
             pickle.dump(model.clf, file)
-
-        load_start_time = time.perf_counter()
-
+        load_start = time.perf_counter()
         with open(temp_file.name, "rb") as file:
             model.clf = pickle.load(file)
+        model.loading_time = time.perf_counter() - load_start
 
-        load_end_time = time.perf_counter()
+    print(f"\nModel Deserialization Time: {model.loading_time:.6f} seconds")
 
-        model.loading_time = load_end_time - load_start_time
-
-    print(f"\nModel Loading Time: {model.loading_time:.6f}")
-
-    # 5. Measure actual model serialization size
-    # and profile inference
-
-    model.profile_execution(
-        test_data,
-    )
-
-    # 6. Calculate accuracy separately
-    # so it does not affect inference latency measurements.
-
+    # Each strategy performs an independent pass. Latency is measured without
+    # tracemalloc; Python allocations and RSS are collected in separate passes.
+    measurements = model.profile_execution(test_data)
     predictions = model.clf.predict(test_data)
-
     accuracy = accuracy_score(y_test, predictions)
-
-    # 7. Prepare benchmark results
+    environment = EnvironmentMeasurement().measure()
 
     results = {
         "model": model_name,
@@ -157,78 +87,57 @@ def run_model(model_name, output_path):
         "p90_latency": float(model.p90_latency),
         "p95_latency": float(model.p95_latency),
         "p99_latency": float(model.p99_latency),
-        "traced_peak_memory_usage": float(model.traced_peak_memory_usage),
-        "processed_rss": float(model.processed_rss),
+        "traced_peak_inference_allocation_mb": float(
+            model.traced_peak_inference_allocation_mb
+        ),
+        "rss_before_inference_mb": float(model.rss_before_inference_mb),
+        "rss_after_inference_mb": float(model.rss_after_inference_mb),
+        "rss_delta_mb": float(model.rss_delta_mb),
         "serialized_model_size": float(model.serialized_model_size),
+        "measurement_details": measurements,
+        "environment": environment,
     }
 
-    # 8. Save JSON results
-
     output_path = Path(output_path)
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
     with open(output_path, "w") as file:
-
         json.dump(results, file, indent=4)
-
-    # 9. Display report
 
     print("\n" + "=" * 60)
     print(f"{model_name.upper()} MODEL REPORT")
     print("=" * 60)
-
-    print(f"Accuracy              : {accuracy * 100:.2f}%")
-    print(f"Training Time         : {training_time:.6f} sec")
-    print(f"Loading Time          : {model.loading_time:.6f} sec")
-
-    print(f"Mean Inference Latency: " f"{model.mean_inference_latency:.4f} ms")
-
-    print(f"P99 Latency           : " f"{model.p99_latency:.4f} ms")
-
-    print(f"Traced Peak Memory    : " f"{model.traced_peak_memory_usage:.4f} MB")
-
-    print(f"RSS Memory            : " f"{model.processed_rss:.2f} MB")
-
-    print(f"Serialized Size       : " f"{model.serialized_model_size:.4f} MB")
-
+    print(f"Accuracy                         : {accuracy * 100:.2f}%")
+    print(f"Training Time                    : {training_time:.6f} sec")
+    print(f"Model Deserialization Time       : {model.loading_time:.6f} sec")
+    print(f"Mean Inference Latency           : {model.mean_inference_latency:.4f} ms")
+    print(f"P99 Latency                      : {model.p99_latency:.4f} ms")
+    print(
+        "Traced Peak Inference Allocation: "
+        f"{model.traced_peak_inference_allocation_mb:.4f} MB"
+    )
+    print(
+        "Process RSS Before / After     : "
+        f"{model.rss_before_inference_mb:.2f} / {model.rss_after_inference_mb:.2f} MB"
+    )
+    print(f"Process RSS Delta                : {model.rss_delta_mb:.4f} MB")
+    print(f"Pickle Serialized Model Size     : {model.serialized_model_size:.4f} MB")
     print("\nResults saved to:", output_path)
-
-    print("\n" + "=" * 60)
-    print(f"COMPLETED: {model_name.upper()}")
-    print("=" * 60)
-
     return results
 
 
-# --------------------------------------------------
-# MAIN ENTRY POINT
-# --------------------------------------------------
-
-
 def main():
-
     parser = argparse.ArgumentParser(description="Isolated ML Model Benchmark Runner")
-
     parser.add_argument(
         "--model", required=True, choices=["lr", "rf", "xgb"], help="Model to benchmark"
     )
-
     parser.add_argument("--output", required=True, help="JSON output file path")
-
     args = parser.parse_args()
-
     try:
-
         run_model(model_name=args.model, output_path=args.output)
-
     except Exception as error:
-
         print("\nERROR:", str(error))
-
         traceback.print_exc()
-
-        sys.exit(1)
+        raise SystemExit(1) from error
 
 
 if __name__ == "__main__":

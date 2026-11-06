@@ -1,13 +1,23 @@
-import pickle
-import time
-import tracemalloc
+"""Model wrapper that delegates profiling to independent measurements."""
+from __future__ import annotations
+
 from typing import Any
 
-import numpy as np
-import psutil  # type: ignore
+from model_diet.profiling.measurements import (
+    BaseMeasurement,
+    LatencyMeasurement,
+    ProcessRSSMeasurement,
+    SerializationMeasurement,
+    TracedAllocationMeasurement,
+)
 
 
 class Model:
+    """Compatibility wrapper around a trained estimator.
+
+    Estimator-specific subclasses provide ``clf``. Measurement strategies are
+    independent objects that can be reused, injected, or subclassed by callers.
+    """
 
     def __init__(
         self,
@@ -20,113 +30,79 @@ class Model:
         traced_peak_memory_usage: float = 0.0,
         processed_rss: float = 0.0,
         serialized_model_size: float = 0.0,
-    ):
-
+        latency_measurement: BaseMeasurement | None = None,
+        allocation_measurement: BaseMeasurement | None = None,
+        rss_measurement: BaseMeasurement | None = None,
+        serialization_measurement: BaseMeasurement | None = None,
+    ) -> None:
         self.loading_time = loading_time
-
         self.mean_inference_latency = mean_inference_latency
         self.p50_latency = p50_latency
         self.p90_latency = p90_latency
         self.p95_latency = p95_latency
         self.p99_latency = p99_latency
-
-        self.traced_peak_memory_usage = traced_peak_memory_usage
-        self.processed_rss = processed_rss
+        self.traced_peak_inference_allocation_mb = traced_peak_memory_usage
+        self.rss_before_inference_mb = processed_rss
+        self.rss_after_inference_mb = processed_rss
+        self.rss_delta_mb = 0.0
+        self.traced_peak_memory_usage = traced_peak_memory_usage  # compatibility
+        self.processed_rss = processed_rss  # compatibility
         self.serialized_model_size = serialized_model_size
 
         self.clf: Any = None
+        self.latency_measurement = (
+            latency_measurement
+            if latency_measurement is not None
+            else LatencyMeasurement()
+        )
+        self.allocation_measurement = (
+            allocation_measurement
+            if allocation_measurement is not None
+            else TracedAllocationMeasurement()
+        )
+        self.rss_measurement = (
+            rss_measurement
+            if rss_measurement is not None
+            else ProcessRSSMeasurement()
+        )
+        self.serialization_measurement = (
+            serialization_measurement
+            if serialization_measurement is not None
+            else SerializationMeasurement()
+        )
 
-    def profile_execution(self, X_test: Any, load_start_time=None):
+    def profile_execution(
+        self, X_test: Any, load_start_time: float | None = None
+    ) -> dict[str, dict[str, Any]]:
+        """Run each measurement as an independent experiment.
+
+        ``load_start_time`` remains accepted for backwards compatibility. An
+        already-loaded model has no measurable historical load duration.
         """
-        Profile inference latency, memory usage
-        and serialized model footprint.
-        """
+        del load_start_time
+        latency = self.latency_measurement.measure(self.clf, X_test)
+        allocation = self.allocation_measurement.measure(self.clf, X_test)
+        process_memory = self.rss_measurement.measure(self.clf, X_test)
+        serialization = self.serialization_measurement.measure(self.clf)
 
-        # ---------------------------------
-        # 1. Loading time
-        # ---------------------------------
+        self.mean_inference_latency = latency["mean_ms"]
+        self.p50_latency = latency["p50_ms"]
+        self.p90_latency = latency["p90_ms"]
+        self.p95_latency = latency["p95_ms"]
+        self.p99_latency = latency["p99_ms"]
+        self.traced_peak_inference_allocation_mb = allocation[
+            "traced_peak_inference_allocation_mb"
+        ]
+        self.rss_before_inference_mb = process_memory["rss_before_inference_mb"]
+        self.rss_after_inference_mb = process_memory["rss_after_inference_mb"]
+        self.rss_delta_mb = process_memory["rss_delta_mb"]
+        self.traced_peak_memory_usage = self.traced_peak_inference_allocation_mb
+        self.processed_rss = self.rss_after_inference_mb
+        self.serialized_model_size = serialization["serialized_model_size_mb"]
 
-        if load_start_time is not None:
-
-            self.loading_time = time.perf_counter() - load_start_time
-
-        # ---------------------------------
-        # 2. Prepare input
-        # ---------------------------------
-
-        samples = X_test.to_numpy() if hasattr(X_test, "to_numpy") else X_test
-
-        # ---------------------------------
-        # 3. Warm-up
-        # ---------------------------------
-
-        if len(samples) > 0:
-
-            warmup_sample = samples[0].reshape(1, -1)
-
-            self.clf.predict(warmup_sample)
-
-        # ---------------------------------
-        # 4. Inference profiling
-        # ---------------------------------
-
-        latencies = []
-
-        tracemalloc.start()
-
-        try:
-
-            for sample in samples:
-
-                sample_input = sample.reshape(1, -1)
-
-                start_time = time.perf_counter()
-
-                self.clf.predict(sample_input)
-
-                end_time = time.perf_counter()
-
-                latencies.append((end_time - start_time) * 1000)
-
-            current_mem, peak_mem = tracemalloc.get_traced_memory()
-
-        finally:
-
-            tracemalloc.stop()
-
-        # ---------------------------------
-        # 5. Latency statistics
-        # ---------------------------------
-
-        latencies = np.asarray(latencies)
-
-        if len(latencies) == 0:
-            raise ValueError("Test dataset is empty")
-
-        self.mean_inference_latency = float(np.mean(latencies))
-
-        self.p50_latency = float(np.percentile(latencies, 50))
-
-        self.p90_latency = float(np.percentile(latencies, 90))
-
-        self.p95_latency = float(np.percentile(latencies, 95))
-
-        self.p99_latency = float(np.percentile(latencies, 99))
-
-        # ---------------------------------
-        # 6. Memory profiling
-        # ---------------------------------
-
-        self.traced_peak_memory_usage = float(peak_mem / (1024 * 1024))
-
-        process = psutil.Process()
-
-        self.processed_rss = float(process.memory_info().rss / (1024 * 1024))
-
-        # ---------------------------------
-        # 7. Serialized model size
-        # ---------------------------------
-
-        serialized_data = pickle.dumps(self.clf)
-
-        self.serialized_model_size = float(len(serialized_data) / (1024 * 1024))
+        return {
+            "latency": latency,
+            "allocation": allocation,
+            "process_memory": process_memory,
+            "serialization": serialization,
+        }

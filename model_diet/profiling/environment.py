@@ -1,21 +1,25 @@
 import os
 import platform
 import sys
+from typing import Any
 
 import numpy as np
 import psutil
 import sklearn
 
+from model_diet.profiling.measurements import BaseMeasurement
+
 try:
     import xgboost
 
-    xgb_version: str | None = xgboost.__version__
+    XGBOOST_VERSION: str | None = xgboost.__version__
 except ImportError:
-    xgb_version = None
+    XGBOOST_VERSION = None
 
 
-def collect_environment():
-
+def collect_environment() -> dict[str, Any]:
+    """Collect host and library metadata relevant to benchmark comparison."""
+    cpu_frequency = psutil.cpu_freq()
     return {
         "python_version": sys.version,
         "platform": platform.platform(),
@@ -23,17 +27,25 @@ def collect_environment():
         "cpu_count_logical": psutil.cpu_count(logical=True),
         "cpu_count_physical": psutil.cpu_count(logical=False),
         "total_ram_gb": round(psutil.virtual_memory().total / (1024**3), 2),
-        "cpu_frequency_mhz": (psutil.cpu_freq().current if psutil.cpu_freq() else None),
+        "cpu_frequency_mhz": cpu_frequency.current if cpu_frequency else None,
         "numpy_version": np.__version__,
         "sklearn_version": sklearn.__version__,
-        "xgboost_version": xgb_version,
+        "xgboost_version": XGBOOST_VERSION,
         "thread_environment": {
             key: os.environ.get(key)
-            for key in [
+            for key in (
                 "OMP_NUM_THREADS",
                 "MKL_NUM_THREADS",
                 "OPENBLAS_NUM_THREADS",
                 "NUMEXPR_NUM_THREADS",
-            ]
+            )
         },
     }
+
+
+class EnvironmentMeasurement(BaseMeasurement):
+    """Measurement strategy that captures the runtime environment metadata."""
+
+    def measure(self, model: Any = None, X: Any = None) -> dict[str, Any]:
+        del model, X
+        return collect_environment()

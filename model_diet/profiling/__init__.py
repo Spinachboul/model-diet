@@ -1,15 +1,19 @@
 """Profiling primitives exposed by Model Diet."""
 
+from model_diet.profiling.environment import EnvironmentMeasurement
 from model_diet.profiling.measurements import (
     BaseMeasurement,
     LatencyMeasurement,
-    MemoryMeasurement,
+    ProcessRSSMeasurement,
     SerializationMeasurement,
+    TracedAllocationMeasurement,
 )
 
 __all__ = [
     "BaseMeasurement",
+    "EnvironmentMeasurement",
     "LatencyMeasurement",
-    "MemoryMeasurement",
+    "ProcessRSSMeasurement",
     "SerializationMeasurement",
+    "TracedAllocationMeasurement",
 ]

@@ -29,15 +29,21 @@ def mock_model():
             self.p95_latency = 0.7
             self.p99_latency = 0.8
             self.traced_peak_inference_allocation_mb = 1.0
+            self.rss_before_inference_mb = 99.0
             self.rss_after_inference_mb = 100.0
+            self.rss_delta_mb = 1.0
             self.serialized_model_size = 0.01
 
         def profile_execution(self, test_data):
             return {
                 "latency": {"mean_ms": self.mean_inference_latency},
-                "memory": {
+                "allocation": {
                     "traced_peak_inference_allocation_mb": 1.0,
+                },
+                "process_memory": {
+                    "rss_before_inference_mb": 99.0,
                     "rss_after_inference_mb": 100.0,
+                    "rss_delta_mb": 1.0,
                 },
                 "serialization": {"serialized_model_size_mb": 0.01},
             }
@@ -110,7 +116,9 @@ def test_output_json_contains_expected_fields(tmp_path, patched_runner):
         "p95_latency",
         "p99_latency",
         "traced_peak_inference_allocation_mb",
+        "rss_before_inference_mb",
         "rss_after_inference_mb",
+        "rss_delta_mb",
         "serialized_model_size",
         "measurement_details",
         "environment",

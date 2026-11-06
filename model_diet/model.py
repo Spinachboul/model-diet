@@ -1,13 +1,22 @@
-import pickle
-import time
-import tracemalloc
+"""Model wrapper that delegates profiling to independent measurements."""
+from __future__ import annotations
+
 from typing import Any
 
-import numpy as np
-import psutil  # type: ignore
+from model_diet.profiling.measurements import (
+    LatencyMeasurement,
+    MemoryMeasurement,
+    SerializationMeasurement,
+)
 
 
 class Model:
+    """Compatibility wrapper around a trained estimator.
+
+    Estimator-specific subclasses provide ``clf``. Measurement strategies are
+    independent objects that can be reused or subclassed without inheriting
+    from this wrapper.
+    """
 
     def __init__(
         self,
@@ -20,113 +29,59 @@ class Model:
         traced_peak_memory_usage: float = 0.0,
         processed_rss: float = 0.0,
         serialized_model_size: float = 0.0,
-    ):
-
+    ) -> None:
+        # Loading time is retained for compatibility with the demo runner.
+        # It must represent a timed artifact deserialization operation.
         self.loading_time = loading_time
-
         self.mean_inference_latency = mean_inference_latency
         self.p50_latency = p50_latency
         self.p90_latency = p90_latency
         self.p95_latency = p95_latency
         self.p99_latency = p99_latency
-
-        self.traced_peak_memory_usage = traced_peak_memory_usage
-        self.processed_rss = processed_rss
+        self.traced_peak_inference_allocation_mb = traced_peak_memory_usage
+        self.rss_after_inference_mb = processed_rss
+        self.traced_peak_memory_usage = traced_peak_memory_usage  # compatibility
+        self.processed_rss = processed_rss  # compatibility
         self.serialized_model_size = serialized_model_size
 
         self.clf: Any = None
+        self.measurements = (
+            LatencyMeasurement(),
+            MemoryMeasurement(),
+            SerializationMeasurement(),
+        )
 
-    def profile_execution(self, X_test: Any, load_start_time=None):
+    def profile_execution(
+        self, X_test: Any, load_start_time: float | None = None
+    ) -> dict[str, dict[str, Any]]:
+        """Run latency, memory, and serialization measurements independently.
+
+        ``load_start_time`` is accepted for backwards compatibility only. An
+        already-loaded model has no measurable historical load duration; callers
+        should time deserialization at the point where it occurs.
         """
-        Profile inference latency, memory usage
-        and serialized model footprint.
-        """
+        del load_start_time
+        latency = self.measurements[0].measure(self.clf, X_test)
+        memory = self.measurements[1].measure(self.clf, X_test)
+        serialization = self.measurements[2].measure(self.clf)
 
-        # ---------------------------------
-        # 1. Loading time
-        # ---------------------------------
+        self.mean_inference_latency = latency["mean_ms"]
+        self.p50_latency = latency["p50_ms"]
+        self.p90_latency = latency["p90_ms"]
+        self.p95_latency = latency["p95_ms"]
+        self.p99_latency = latency["p99_ms"]
 
-        if load_start_time is not None:
+        self.traced_peak_inference_allocation_mb = memory[
+            "traced_peak_inference_allocation_mb"
+        ]
+        self.rss_after_inference_mb = memory["rss_after_inference_mb"]
+        # Preserve attributes consumed by older report code for this transition.
+        self.traced_peak_memory_usage = self.traced_peak_inference_allocation_mb
+        self.processed_rss = self.rss_after_inference_mb
+        self.serialized_model_size = serialization["serialized_model_size_mb"]
 
-            self.loading_time = time.perf_counter() - load_start_time
-
-        # ---------------------------------
-        # 2. Prepare input
-        # ---------------------------------
-
-        samples = X_test.to_numpy() if hasattr(X_test, "to_numpy") else X_test
-
-        # ---------------------------------
-        # 3. Warm-up
-        # ---------------------------------
-
-        if len(samples) > 0:
-
-            warmup_sample = samples[0].reshape(1, -1)
-
-            self.clf.predict(warmup_sample)
-
-        # ---------------------------------
-        # 4. Inference profiling
-        # ---------------------------------
-
-        latencies = []
-
-        tracemalloc.start()
-
-        try:
-
-            for sample in samples:
-
-                sample_input = sample.reshape(1, -1)
-
-                start_time = time.perf_counter()
-
-                self.clf.predict(sample_input)
-
-                end_time = time.perf_counter()
-
-                latencies.append((end_time - start_time) * 1000)
-
-            current_mem, peak_mem = tracemalloc.get_traced_memory()
-
-        finally:
-
-            tracemalloc.stop()
-
-        # ---------------------------------
-        # 5. Latency statistics
-        # ---------------------------------
-
-        latencies = np.asarray(latencies)
-
-        if len(latencies) == 0:
-            raise ValueError("Test dataset is empty")
-
-        self.mean_inference_latency = float(np.mean(latencies))
-
-        self.p50_latency = float(np.percentile(latencies, 50))
-
-        self.p90_latency = float(np.percentile(latencies, 90))
-
-        self.p95_latency = float(np.percentile(latencies, 95))
-
-        self.p99_latency = float(np.percentile(latencies, 99))
-
-        # ---------------------------------
-        # 6. Memory profiling
-        # ---------------------------------
-
-        self.traced_peak_memory_usage = float(peak_mem / (1024 * 1024))
-
-        process = psutil.Process()
-
-        self.processed_rss = float(process.memory_info().rss / (1024 * 1024))
-
-        # ---------------------------------
-        # 7. Serialized model size
-        # ---------------------------------
-
-        serialized_data = pickle.dumps(self.clf)
-
-        self.serialized_model_size = float(len(serialized_data) / (1024 * 1024))
+        return {
+            "latency": latency,
+            "memory": memory,
+            "serialization": serialization,
+        }

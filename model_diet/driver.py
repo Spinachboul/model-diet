@@ -1,4 +1,3 @@
-
 from model_diet.profiling.benchmark import run_repeated_benchmark
 
 
@@ -12,10 +11,7 @@ def main():
 
     for model_name in models:
 
-        summary = run_repeated_benchmark(
-            model_name=model_name,
-            repetitions=repetitions
-        )
+        summary = run_repeated_benchmark(model_name=model_name, repetitions=repetitions)
 
         all_results[model_name] = summary
 

@@ -1,4 +1,3 @@
-
 import numpy as np
 
 
@@ -26,7 +25,7 @@ def calculate_statistics(values):
         "max": float(np.max(values)),
         "p90": float(np.percentile(values, 90)),
         "p95": float(np.percentile(values, 95)),
-        "p99": float(np.percentile(values, 99))
+        "p99": float(np.percentile(values, 99)),
     }
 
 
@@ -45,7 +44,7 @@ def summarize_runs(runs):
         "p99_latency",
         "traced_peak_memory_usage",
         "processed_rss",
-        "serialized_model_size"
+        "serialized_model_size",
     ]
 
     summary = {}
@@ -53,9 +52,7 @@ def summarize_runs(runs):
     for metric in metrics:
 
         values = [
-            run[metric]
-            for run in runs
-            if metric in run and run[metric] is not None
+            run[metric] for run in runs if metric in run and run[metric] is not None
         ]
 
         if values:

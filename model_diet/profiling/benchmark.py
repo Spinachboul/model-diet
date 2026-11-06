@@ -1,13 +1,9 @@
-
+import json
 import subprocess
 import sys
-import json
-import os
-
 from pathlib import Path
 
 from model_diet.profiling.statistics import summarize_runs
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -30,13 +26,10 @@ def run_repeated_benchmark(model_name, repetitions=10):
     for iteration in range(1, repetitions + 1):
 
         print(
-            f"\nRunning {model_name.upper()} "
-            f"- Iteration {iteration}/{repetitions}"
+            f"\nRunning {model_name.upper()} " f"- Iteration {iteration}/{repetitions}"
         )
 
-        output_file = RAW_DIR / (
-            f"{model_name}_run_{iteration}.json"
-        )
+        output_file = RAW_DIR / (f"{model_name}_run_{iteration}.json")
 
         command = [
             sys.executable,
@@ -44,14 +37,11 @@ def run_repeated_benchmark(model_name, repetitions=10):
             "--model",
             model_name,
             "--output",
-            str(output_file)
+            str(output_file),
         ]
 
         result = subprocess.run(
-            command,
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True
+            command, cwd=PROJECT_ROOT, capture_output=True, text=True
         )
 
         if result.returncode != 0:
@@ -67,9 +57,7 @@ def run_repeated_benchmark(model_name, repetitions=10):
         runs.append(run_data)
 
     if not runs:
-        raise RuntimeError(
-            f"All benchmark runs failed for {model_name}"
-        )
+        raise RuntimeError(f"All benchmark runs failed for {model_name}")
 
     summary = summarize_runs(runs)
 

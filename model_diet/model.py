@@ -1,11 +1,10 @@
-
+import pickle
 import time
 import tracemalloc
-import psutil
-import pickle
-import numpy as np
-
 from typing import Any
+
+import numpy as np
+import psutil  # type: ignore
 
 
 class Model:
@@ -20,7 +19,7 @@ class Model:
         p99_latency: float = 0.0,
         traced_peak_memory_usage: float = 0.0,
         processed_rss: float = 0.0,
-        serialized_model_size: float = 0.0
+        serialized_model_size: float = 0.0,
     ):
 
         self.loading_time = loading_time
@@ -35,11 +34,9 @@ class Model:
         self.processed_rss = processed_rss
         self.serialized_model_size = serialized_model_size
 
-    def profile_execution(
-        self,
-        X_test: Any,
-        load_start_time=None
-    ):
+        self.clf: Any = None
+
+    def profile_execution(self, X_test: Any, load_start_time=None):
         """
         Profile inference latency, memory usage
         and serialized model footprint.
@@ -51,19 +48,13 @@ class Model:
 
         if load_start_time is not None:
 
-            self.loading_time = (
-                time.perf_counter() - load_start_time
-            )
+            self.loading_time = time.perf_counter() - load_start_time
 
         # ---------------------------------
         # 2. Prepare input
         # ---------------------------------
 
-        samples = (
-            X_test.to_numpy()
-            if hasattr(X_test, "to_numpy")
-            else X_test
-        )
+        samples = X_test.to_numpy() if hasattr(X_test, "to_numpy") else X_test
 
         # ---------------------------------
         # 3. Warm-up
@@ -95,13 +86,9 @@ class Model:
 
                 end_time = time.perf_counter()
 
-                latencies.append(
-                    (end_time - start_time) * 1000
-                )
+                latencies.append((end_time - start_time) * 1000)
 
-            current_mem, peak_mem = (
-                tracemalloc.get_traced_memory()
-            )
+            current_mem, peak_mem = tracemalloc.get_traced_memory()
 
         finally:
 
@@ -116,39 +103,25 @@ class Model:
         if len(latencies) == 0:
             raise ValueError("Test dataset is empty")
 
-        self.mean_inference_latency = float(
-            np.mean(latencies)
-        )
+        self.mean_inference_latency = float(np.mean(latencies))
 
-        self.p50_latency = float(
-            np.percentile(latencies, 50)
-        )
+        self.p50_latency = float(np.percentile(latencies, 50))
 
-        self.p90_latency = float(
-            np.percentile(latencies, 90)
-        )
+        self.p90_latency = float(np.percentile(latencies, 90))
 
-        self.p95_latency = float(
-            np.percentile(latencies, 95)
-        )
+        self.p95_latency = float(np.percentile(latencies, 95))
 
-        self.p99_latency = float(
-            np.percentile(latencies, 99)
-        )
+        self.p99_latency = float(np.percentile(latencies, 99))
 
         # ---------------------------------
         # 6. Memory profiling
         # ---------------------------------
 
-        self.traced_peak_memory_usage = float(
-            peak_mem / (1024 * 1024)
-        )
+        self.traced_peak_memory_usage = float(peak_mem / (1024 * 1024))
 
         process = psutil.Process()
 
-        self.processed_rss = float(
-            process.memory_info().rss / (1024 * 1024)
-        )
+        self.processed_rss = float(process.memory_info().rss / (1024 * 1024))
 
         # ---------------------------------
         # 7. Serialized model size
@@ -156,6 +129,4 @@ class Model:
 
         serialized_data = pickle.dumps(self.clf)
 
-        self.serialized_model_size = float(
-            len(serialized_data) / (1024 * 1024)
-        )
+        self.serialized_model_size = float(len(serialized_data) / (1024 * 1024))

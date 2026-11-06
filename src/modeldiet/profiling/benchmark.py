@@ -6,7 +6,7 @@ from pathlib import Path
 from modeldiet.profiling.statistics import summarize_runs
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-PACKAGE_ROOT = REPOSITORY_ROOT / "model_diet"
+PACKAGE_ROOT = REPOSITORY_ROOT / "src" / "modeldiet"
 RESULT_DIR = PACKAGE_ROOT / "results"
 RAW_DIR = RESULT_DIR / "raw_runs"
 SUMMARY_DIR = RESULT_DIR / "summaries"
@@ -32,7 +32,7 @@ def run_repeated_benchmark(model_name, repetitions=10):
         command = [
             sys.executable,
             "-m",
-            "model_diet.profiling.isolated_runner",
+            "modeldiet.profiling.isolated_runner",
             "--model",
             model_name,
             "--output",

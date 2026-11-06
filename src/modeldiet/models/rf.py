@@ -1,6 +1,6 @@
 from sklearn.ensemble import RandomForestClassifier
 
-from model_diet.model import Model
+from modeldiet.model import Model
 
 
 class RandomForestModel(Model):

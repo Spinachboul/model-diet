@@ -1,4 +1,4 @@
-from model_diet.profiling.benchmark import run_repeated_benchmark
+from modeldiet.profiling.benchmark import run_repeated_benchmark
 
 
 def main():

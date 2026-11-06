@@ -1,6 +1,6 @@
 from sklearn.linear_model import LogisticRegression
 
-from model_diet.model import Model
+from modeldiet.model import Model
 
 
 class LogisticRegressionModel(Model):

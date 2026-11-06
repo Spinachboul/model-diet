@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Literal, Sequence
 
-from model_diet.profiling.measurements import BaseMeasurement
-from model_diet.result import (
+from modeldiet.profiling.measurements import BaseMeasurement
+from modeldiet.result import (
     SCHEMA_VERSION,
     MeasurementError,
     MeasurementResult,

@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import psutil
 
-from model_diet.profiling.measurements import BaseMeasurement
+from modeldiet.profiling.measurements import BaseMeasurement
 
 
 def _package_version(distribution: str) -> str | None:

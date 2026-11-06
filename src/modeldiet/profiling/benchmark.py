@@ -3,7 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from model_diet.profiling.statistics import summarize_runs
+from modeldiet.profiling.statistics import summarize_runs
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_ROOT = REPOSITORY_ROOT / "model_diet"

@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from model_diet.profiling.isolated_runner import run_model
+from modeldiet.profiling.isolated_runner import run_model
 
 
 class DummyClassifier:

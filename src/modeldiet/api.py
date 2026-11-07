@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Sequence
+from collections.abc import Sequence
+from typing import Any, Literal
 
 from modeldiet.profiling.measurements import BaseMeasurement, LatencyMeasurement
 from modeldiet.profiling.orchestrator import run_measurements

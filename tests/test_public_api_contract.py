@@ -104,7 +104,8 @@ def test_legacy_pickle_path_loads_through_compatibility_module():
     finally:
         model_type.__module__ = original_module
 
-    restored = pickle.loads(legacy_pickle)
+    # This fixture was serialized from the known compatibility class above.
+    restored = pickle.loads(legacy_pickle)  # nosec B301
     assert type(restored) is model_type
 
 

@@ -3,7 +3,7 @@ import warnings
 from modeldiet.benchmark import run_repeated_benchmark
 
 
-def main():
+def main() -> None:
     warnings.warn(
         "modeldiet.driver.main is deprecated. Call "
         "modeldiet.benchmark.run_repeated_benchmark() once per selected model. "
@@ -20,7 +20,6 @@ def main():
     all_results = {}
 
     for model_name in models:
-
         summary = run_repeated_benchmark(model_name=model_name, repetitions=repetitions)
 
         all_results[model_name] = summary

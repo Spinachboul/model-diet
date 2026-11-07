@@ -30,7 +30,7 @@ The legacy `Model`, estimator wrappers, `Report`, and `driver.main()` are deprec
 
 `profile()` raises `TypeError` for a model without callable `predict()` or a strategy that is not a `BaseMeasurement`; invalid `on_error`, missing input, and an empty strategy sequence raise `ValueError`. By default, measurement failures raise `RuntimeError`; `on_error="record"` stores the error and continues. Export methods accept a string or `Path`; the parent directory must already exist. These behaviors are described here as current contracts.
 
-Core profiling depends on NumPy and psutil. Scikit-learn and XGBoost are optional. The `benchmark` extra provides scikit-learn for LR/RF benchmark runs; `benchmark-xgboost` provides scikit-learn and XGBoost; the existing `demo` extra continues to include both. User models that provide a compatible `predict(X)` method need no scikit-learn or XGBoost installation. See the [README installation guidance](https://github.com/modeldiet/modeldiet#installation) and the [benchmark runner guide](application.md#optional-benchmark-runner).
+Core profiling depends on NumPy and psutil. Scikit-learn, pandas, and XGBoost are optional. The `benchmark` extra provides pandas and scikit-learn for LR/RF benchmark runs; `benchmark-xgboost` provides pandas, scikit-learn, and XGBoost; the existing `demo` extra includes all three. User models that provide a compatible `predict(X)` method need none of these optional libraries. Model Diet is not yet available on production PyPI; see the [README installation guidance](https://github.com/modeldiet/modeldiet#install) and the [benchmark runner guide](application.md#optional-benchmark-runner).
 
 ## Root imports
 

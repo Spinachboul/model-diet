@@ -3,6 +3,7 @@
 Model Diet profiles inference characteristics of an already-fitted Python model and returns structured, exportable results.
 
 For a detailed walkthrough, see the [application guide](docs/application.md) or the [hosted documentation source](docs/index.md).
+For supported imports and compatibility expectations, see the [API reference](docs/api.md).
 
 ## What is Model Diet?
 

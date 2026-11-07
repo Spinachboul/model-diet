@@ -2,6 +2,8 @@
 
 This guide explains how to use Model Diet in a Python application. Model Diet profiles an already-fitted model; it does not train a model or evaluate its predictive quality.
 
+See the [API reference](api.md) for supported import paths and compatibility expectations.
+
 ## Installation
 
 Model Diet requires Python 3.11 or later.

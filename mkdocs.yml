@@ -1,0 +1,26 @@
+site_name: Model Diet
+site_description: Profile inference behavior of fitted Python models.
+site_url: https://modeldiet.github.io/modeldiet/
+repo_url: https://github.com/modeldiet/modeldiet
+edit_uri: edit/master/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Get started: quickstart.md
+  - Application guide: application.md
+  - Measurements: measurements.md
+  - API reference: api.md
+  - Host the docs: hosting.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true

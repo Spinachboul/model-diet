@@ -2,6 +2,8 @@
 
 Model Diet profiles inference characteristics of an already-fitted Python model and returns structured, exportable results.
 
+For a detailed walkthrough, see the [application guide](docs/application.md) or the [hosted documentation source](docs/index.md).
+
 ## What is Model Diet?
 
 Model Diet is a Python library for measuring model inference behavior on representative input data. It accepts a fitted object with a `predict(X)` method, runs one or more measurement strategies, and returns a `ProfileResult` with metric definitions and values.

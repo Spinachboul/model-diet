@@ -2,11 +2,16 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 from modeldiet.benchmark.statistics import summarize_runs
 
 
-def run_repeated_benchmark(model_name, repetitions=10, output_dir=None):
+def run_repeated_benchmark(
+    model_name: str,
+    repetitions: int = 10,
+    output_dir: str | Path | None = None,
+) -> dict[str, dict[str, float]]:
     """Run repeated benchmarks, writing results under output_dir or ./results."""
     if repetitions < 1:
         raise ValueError("repetitions must be at least one")
@@ -16,16 +21,14 @@ def run_repeated_benchmark(model_name, repetitions=10, output_dir=None):
     summary_dir = result_dir / "summaries"
     raw_dir.mkdir(parents=True, exist_ok=True)
     summary_dir.mkdir(parents=True, exist_ok=True)
-    runs = []
+    runs: list[dict[str, Any]] = []
 
     print("\n" + "=" * 60)
     print(f"REPEATED BENCHMARK: {model_name.upper()}")
     print("=" * 60)
 
     for iteration in range(1, repetitions + 1):
-        print(
-            f"\nRunning {model_name.upper()} " f"- Iteration {iteration}/{repetitions}"
-        )
+        print(f"\nRunning {model_name.upper()} - Iteration {iteration}/{repetitions}")
         output_file = raw_dir / f"{model_name}_run_{iteration}.json"
         command = [
             sys.executable,
@@ -48,16 +51,16 @@ def run_repeated_benchmark(model_name, repetitions=10, output_dir=None):
             continue
 
         print(result.stdout)
-        with open(output_file, "r") as file:
-            runs.append(json.load(file))
+        with output_file.open(encoding="utf-8") as result_file:
+            runs.append(json.load(result_file))
 
     if not runs:
         raise RuntimeError(f"All benchmark runs failed for {model_name}")
 
     summary = summarize_runs(runs)
     summary_file = summary_dir / f"{model_name}_summary.json"
-    with open(summary_file, "w") as file:
-        json.dump(summary, file, indent=4)
+    with summary_file.open("w", encoding="utf-8") as summary_stream:
+        json.dump(summary, summary_stream, indent=4)
 
     print("\nSTATISTICAL SUMMARY")
     print("=" * 60)

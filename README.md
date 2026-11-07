@@ -31,9 +31,9 @@ The optional benchmark tools have separate extras:
 
 | Install from the repository checkout | Includes | Use |
 | --- | --- | --- |
-| `python -m pip install ".[benchmark]"` | scikit-learn | Logistic Regression and Random Forest benchmark runs |
-| `python -m pip install ".[benchmark-xgboost]"` | scikit-learn and XGBoost | XGBoost benchmark runs |
-| `python -m pip install ".[demo]"` | scikit-learn and XGBoost | All documented demo examples and benchmark types |
+| `python -m pip install ".[benchmark]"` | pandas and scikit-learn | Logistic Regression and Random Forest benchmark runs |
+| `python -m pip install ".[benchmark-xgboost]"` | pandas, scikit-learn, and XGBoost | XGBoost benchmark runs |
+| `python -m pip install ".[demo]"` | pandas, scikit-learn, and XGBoost | All documented demo examples and benchmark types |
 
 The test release `0.1.0` is available from [TestPyPI](https://test.pypi.org/project/modeldiet/), but it is not a production release. To try it, let pip use TestPyPI for Model Diet and production PyPI for its dependencies:
 
@@ -182,11 +182,11 @@ Core profiling accepts your model and input data. The demonstration benchmark is
 To work on the project, install its test and demo dependencies from a checkout and run the tests:
 
 ```bash
-python -m pip install -e ".[test,demo]"
+python -m pip install -e ".[test,demo,dev]"
 python -m pytest -v
 ```
 
-See [CONTRIBUTING_GUIDE.md](CONTRIBUTING_GUIDE.md) for contribution and documentation instructions. Contributions and issue reports are welcome.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor setup and quality checks. Contributions and issue reports are welcome.
 
 ## License
 

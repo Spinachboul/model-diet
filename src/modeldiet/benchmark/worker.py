@@ -1,11 +1,18 @@
+from __future__ import annotations
+
 import argparse
 import json
 import pickle
 import tempfile
 import time
 import traceback
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, Protocol
 
+import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
 from sklearn.datasets import load_breast_cancer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -22,7 +29,13 @@ from modeldiet.profiling import (
 )
 
 
-def create_model(model_name):
+class _Estimator(Protocol):
+    def fit(self, X: Any, y: Any) -> Any: ...
+
+    def predict(self, X: Any) -> Any: ...
+
+
+def create_model(model_name: str) -> _Estimator:
     """Create one of the estimators used by the repository demonstration."""
     if model_name == "lr":
         return LogisticRegression(C=1.0, max_iter=1000)
@@ -43,7 +56,14 @@ def create_model(model_name):
     raise ValueError(f"Unsupported model: {model_name}")
 
 
-def load_dataset():
+def load_dataset() -> tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+    NDArray[np.float64],
+    NDArray[np.float64],
+    pd.Series[Any],
+    pd.Series[Any],
+]:
     """Load the example dataset and prepare train/test splits."""
     data = load_breast_cancer(as_frame=True)
     X, y = data.data, data.target
@@ -56,7 +76,7 @@ def load_dataset():
     return X_train, X_test, X_train_scaled, X_test_scaled, y_train, y_test
 
 
-def run_model(model_name, output_path):
+def run_model(model_name: str, output_path: str | Path) -> Mapping[str, Any]:
     """Run one isolated demonstration benchmark and write JSON results."""
     print("\n" + "=" * 60)
     print(f"STARTING ISOLATED PROCESS: {model_name.upper()}")
@@ -64,6 +84,8 @@ def run_model(model_name, output_path):
 
     X_train, X_test, X_train_scaled, X_test_scaled, y_train, y_test = load_dataset()
     model = create_model(model_name)
+    train_data: pd.DataFrame | NDArray[np.float64]
+    test_data: pd.DataFrame | NDArray[np.float64]
     if model_name == "lr":
         train_data, test_data = X_train_scaled, X_test_scaled
     else:
@@ -76,11 +98,13 @@ def run_model(model_name, output_path):
 
     # This measures pickle deserialization only, not process startup/imports.
     with tempfile.NamedTemporaryFile(suffix=".pkl") as temp_file:
-        with open(temp_file.name, "wb") as file:
-            pickle.dump(model, file)
+        with open(temp_file.name, "wb") as model_writer:
+            pickle.dump(model, model_writer)
         load_start = time.perf_counter()
-        with open(temp_file.name, "rb") as file:
-            model = pickle.load(file)
+        with open(temp_file.name, "rb") as model_reader:
+            # This is a round-trip of the pickle written from the in-memory
+            # estimator above; the input is not user-controlled.
+            model = pickle.load(model_reader)  # nosec B301
         loading_time = time.perf_counter() - load_start
 
     print(f"\nModel Deserialization Time: {loading_time:.6f} seconds")
@@ -99,7 +123,7 @@ def run_model(model_name, output_path):
     predictions = model.predict(test_data)
     accuracy = accuracy_score(y_test, predictions)
 
-    def values(name):
+    def values(name: str) -> dict[str, Any]:
         return {
             key: metric.value
             for key, metric in result.measurements[name].metrics.items()
@@ -116,7 +140,7 @@ def run_model(model_name, output_path):
         "serialization": serialization,
     }
 
-    results = {
+    results: dict[str, Any] = {
         "model": model_name,
         "training_time": float(training_time),
         "loading_time": float(loading_time),
@@ -139,8 +163,8 @@ def run_model(model_name, output_path):
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w") as file:
-        json.dump(results, file, indent=4)
+    with output_path.open("w", encoding="utf-8") as output_file:
+        json.dump(results, output_file, indent=4)
 
     print("\n" + "=" * 60)
     print(f"{model_name.upper()} MODEL REPORT")
@@ -168,7 +192,7 @@ def run_model(model_name, output_path):
     return results
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Isolated ML Model Benchmark Runner")
     parser.add_argument(
         "--model", required=True, choices=["lr", "rf", "xgb"], help="Model to benchmark"

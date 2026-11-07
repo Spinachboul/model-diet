@@ -1,29 +1,34 @@
+from collections.abc import Mapping, Sequence
+from typing import Any
+
 import numpy as np
 
 
-def calculate_statistics(values):
+def calculate_statistics(values: Sequence[float]) -> dict[str, float]:
     """Calculate statistics across independent benchmark runs."""
-    values = np.asarray(values, dtype=float)
-    if len(values) == 0:
+    measurements = np.asarray(values, dtype=float)
+    if len(measurements) == 0:
         raise ValueError("No benchmark measurements provided")
 
-    mean = float(np.mean(values))
-    std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+    mean = float(np.mean(measurements))
+    std = float(np.std(measurements, ddof=1)) if len(measurements) > 1 else 0.0
     cv = (std / mean * 100) if mean != 0 else 0.0
     return {
         "mean": mean,
-        "median": float(np.median(values)),
+        "median": float(np.median(measurements)),
         "std_dev": std,
         "coefficient_of_variation": float(cv),
-        "min": float(np.min(values)),
-        "max": float(np.max(values)),
-        "p90": float(np.percentile(values, 90)),
-        "p95": float(np.percentile(values, 95)),
-        "p99": float(np.percentile(values, 99)),
+        "min": float(np.min(measurements)),
+        "max": float(np.max(measurements)),
+        "p90": float(np.percentile(measurements, 90)),
+        "p95": float(np.percentile(measurements, 95)),
+        "p99": float(np.percentile(measurements, 99)),
     }
 
 
-def summarize_runs(runs):
+def summarize_runs(
+    runs: Sequence[Mapping[str, Any]],
+) -> dict[str, dict[str, float]]:
     """Aggregate measurements from multiple independent benchmark runs."""
     metrics = [
         "training_time",
@@ -43,7 +48,7 @@ def summarize_runs(runs):
         "traced_peak_inference_allocation_mb": "traced_peak_memory_usage",
         "rss_after_inference_mb": "processed_rss",
     }
-    summary = {}
+    summary: dict[str, dict[str, float]] = {}
     for metric in metrics:
         legacy_name = legacy_names.get(metric)
         values = []

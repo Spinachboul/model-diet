@@ -1,10 +1,13 @@
 import warnings
+from typing import Any
 
 from sklearn.metrics import accuracy_score
 
+from modeldiet.benchmark.model import Model
+
 
 class Report:
-    def __init__(self, model, X_test, y_test):
+    def __init__(self, model: Model, X_test: Any, y_test: Any) -> None:
         warnings.warn(
             "Report is a deprecated benchmark compatibility interface. Use "
             "run_repeated_benchmark() for demonstration benchmark output; use "
@@ -18,7 +21,7 @@ class Report:
         self.X_test = X_test
         self.y_test = y_test
 
-    def print_report(self):
+    def print_report(self) -> None:
         y_pred = self.model.clf.predict(self.X_test)
         accuracy = accuracy_score(self.y_test, y_pred)
         model_name = self.model.__class__.__name__

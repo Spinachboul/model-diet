@@ -1,3 +1,5 @@
+from typing import Any
+
 from sklearn.ensemble import RandomForestClassifier
 
 from modeldiet.benchmark.model import Model
@@ -5,8 +7,11 @@ from modeldiet.benchmark.model import Model
 
 class RandomForestModel(Model):
     def __init__(
-        self, n_estimators: int = 100, max_depth: int = None, **kwargs  # type: ignore
-    ):
+        self,
+        n_estimators: int = 100,
+        max_depth: int | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
 
         # specific class configurations

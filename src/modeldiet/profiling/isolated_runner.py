@@ -11,19 +11,30 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from modeldiet.models.lr import LogisticRegressionModel
-from modeldiet.models.rf import RandomForestModel
-from modeldiet.models.xgb import XGBoostModel
 from modeldiet.profiling.environment import EnvironmentMeasurement
 
 
 def create_model(model_name):
     """Create one of the estimators used by the repository demonstration."""
     if model_name == "lr":
+        from modeldiet.models.lr import LogisticRegressionModel
+
         return LogisticRegressionModel(C=1.0, max_iter=1000)
     if model_name == "rf":
+        from modeldiet.models.rf import RandomForestModel
+
         return RandomForestModel(n_estimators=100, max_depth=None)
     if model_name == "xgb":
+        try:
+            from modeldiet.models.xgb import XGBoostModel
+        except ModuleNotFoundError as exc:
+            if exc.name != "xgboost":
+                raise
+            raise ImportError(
+                "The XGBoost benchmark requires the optional dependency. "
+                'Install it with `python -m pip install "modeldiet[benchmark-xgboost]"`.'
+            ) from exc
+
         return XGBoostModel(n_estimators=100, max_depth=6, learning_rate=0.3)
     raise ValueError(f"Unsupported model: {model_name}")
 

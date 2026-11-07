@@ -5,19 +5,17 @@ from pathlib import Path
 
 from modeldiet.profiling.statistics import summarize_runs
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-PACKAGE_ROOT = REPOSITORY_ROOT / "src" / "modeldiet"
-RESULT_DIR = PACKAGE_ROOT / "results"
-RAW_DIR = RESULT_DIR / "raw_runs"
-SUMMARY_DIR = RESULT_DIR / "summaries"
 
-
-def run_repeated_benchmark(model_name, repetitions=10):
+def run_repeated_benchmark(model_name, repetitions=10, output_dir=None):
+    """Run repeated benchmarks, writing results under output_dir or ./results."""
     if repetitions < 1:
         raise ValueError("repetitions must be at least one")
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
+    result_dir = Path(output_dir) if output_dir is not None else Path.cwd() / "results"
+    raw_dir = result_dir / "raw_runs"
+    summary_dir = result_dir / "summaries"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    summary_dir.mkdir(parents=True, exist_ok=True)
     runs = []
 
     print("\n" + "=" * 60)
@@ -28,7 +26,7 @@ def run_repeated_benchmark(model_name, repetitions=10):
         print(
             f"\nRunning {model_name.upper()} " f"- Iteration {iteration}/{repetitions}"
         )
-        output_file = RAW_DIR / f"{model_name}_run_{iteration}.json"
+        output_file = raw_dir / f"{model_name}_run_{iteration}.json"
         command = [
             sys.executable,
             "-m",
@@ -40,7 +38,6 @@ def run_repeated_benchmark(model_name, repetitions=10):
         ]
         result = subprocess.run(
             command,
-            cwd=REPOSITORY_ROOT,
             capture_output=True,
             text=True,
             check=False,
@@ -58,7 +55,7 @@ def run_repeated_benchmark(model_name, repetitions=10):
         raise RuntimeError(f"All benchmark runs failed for {model_name}")
 
     summary = summarize_runs(runs)
-    summary_file = SUMMARY_DIR / f"{model_name}_summary.json"
+    summary_file = summary_dir / f"{model_name}_summary.json"
     with open(summary_file, "w") as file:
         json.dump(summary, file, indent=4)
 

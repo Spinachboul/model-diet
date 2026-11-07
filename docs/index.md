@@ -36,4 +36,4 @@ The scikit-learn example requires the optional demo extra:
 python -m pip install "modeldiet[demo]"
 ```
 
-See the repository [README](../README.md) for the project overview and the root [contribution guide](../CONTRIBUTING_GUIDE.md) for development setup.
+See the repository [README](https://github.com/modeldiet/modeldiet/blob/master/README.md) for the project overview and the [contribution guide](https://github.com/modeldiet/modeldiet/blob/master/CONTRIBUTING_GUIDE.md) for development setup.

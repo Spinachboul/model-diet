@@ -28,6 +28,8 @@ The Quick Start uses scikit-learn, which is an optional demo dependency. Install
 python -m pip install "modeldiet[demo]"
 ```
 
+The repeated benchmark runner is optional tooling. Logistic Regression and Random Forest benchmarks require scikit-learn; install `modeldiet[benchmark]`. XGBoost benchmarks require both scikit-learn and XGBoost; install `modeldiet[benchmark-xgboost]`. The existing `modeldiet[demo]` extra continues to install both libraries for all examples and benchmarks.
+
 ## Quick Start
 
 This example trains a small classifier, profiles its inference latency, and writes JSON and Markdown reports:

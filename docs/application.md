@@ -16,6 +16,18 @@ Install the optional demo dependencies to use the scikit-learn examples in this 
 python -m pip install "modeldiet[demo]"
 ```
 
+## Optional benchmark runner
+
+The benchmark runner uses a bundled scikit-learn dataset. Install `modeldiet[benchmark]` to run its Logistic Regression or Random Forest benchmarks. XGBoost benchmarks need both dependencies, available as `modeldiet[benchmark-xgboost]`. The existing `modeldiet[demo]` extra remains available and includes scikit-learn and XGBoost.
+
+```python
+from modeldiet.profiling.benchmark import run_repeated_benchmark
+
+run_repeated_benchmark("lr", repetitions=1, output_dir="benchmark-output")
+```
+
+The core `modeldiet` installation does not include scikit-learn or XGBoost. Profiling your own model with `profile()` requires neither library.
+
 ## Profile a fitted model
 
 Any fitted Python object with a callable `predict(X)` method can be profiled, provided it accepts the input rows described below. This example creates a classifier, fits it, and profiles its latency:

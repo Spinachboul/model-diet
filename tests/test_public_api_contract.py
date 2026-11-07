@@ -3,6 +3,7 @@ import pickle
 import subprocess
 import sys
 import textwrap
+import warnings
 
 
 def test_supported_root_imports_and_public_names():
@@ -89,14 +90,22 @@ def test_legacy_model_report_and_estimator_imports_are_compatibility_aliases():
     assert XGBoostModel is NewXGB
     assert Report is NewReport
 
+
+def test_legacy_pickle_path_loads_through_compatibility_module():
+    from modeldiet.benchmark.models.lr import LogisticRegressionModel
+
     model_type = LogisticRegressionModel
     original_module = model_type.__module__
     try:
         model_type.__module__ = "modeldiet.models.lr"
-        legacy_pickle = pickle.dumps(model_type())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            legacy_pickle = pickle.dumps(model_type())
     finally:
         model_type.__module__ = original_module
-    assert type(pickle.loads(legacy_pickle)) is model_type
+
+    restored = pickle.loads(legacy_pickle)
+    assert type(restored) is model_type
 
 
 def test_ordinary_import_has_no_optional_ml_dependencies(tmp_path):

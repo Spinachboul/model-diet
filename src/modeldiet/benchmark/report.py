@@ -1,8 +1,19 @@
+import warnings
+
 from sklearn.metrics import accuracy_score
 
 
 class Report:
     def __init__(self, model, X_test, y_test):
+        warnings.warn(
+            "Report is a deprecated benchmark compatibility interface. Use "
+            "run_repeated_benchmark() for demonstration benchmark output; use "
+            "profile() and ProfileResult exports for general-purpose profiling. "
+            "Report will remain available through the 0.x series and will not "
+            "be removed before 1.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.model = model
         self.X_test = X_test
         self.y_test = y_test

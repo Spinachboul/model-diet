@@ -9,124 +9,61 @@ from modeldiet.profiling.isolated_runner import run_model
 
 class DummyClassifier:
     def fit(self, X, y):
+        self.class_value = int(y[0])
         return self
 
     def predict(self, X):
-        return np.zeros(len(X), dtype=int)
-
-
-def _make_dummy_model():
-    class DummyModel:
-        def __init__(self):
-            self.clf = DummyClassifier()
-            self.loading_time = 0.0
-            self.mean_inference_latency = 0.5
-            self.p50_latency = 0.4
-            self.p90_latency = 0.6
-            self.p95_latency = 0.7
-            self.p99_latency = 0.8
-            self.traced_peak_inference_allocation_mb = 1.0
-            self.rss_before_inference_mb = 99.0
-            self.rss_after_inference_mb = 100.0
-            self.rss_delta_mb = 1.0
-            self.serialized_model_size = 0.01
-
-        def profile_execution(self, test_data):
-            return {
-                "latency": {"mean_ms": self.mean_inference_latency},
-                "allocation": {
-                    "traced_peak_inference_allocation_mb": 1.0,
-                },
-                "process_memory": {
-                    "rss_before_inference_mb": 99.0,
-                    "rss_after_inference_mb": 100.0,
-                    "rss_delta_mb": 1.0,
-                },
-                "serialization": {"serialized_model_size_mb": 0.01},
-            }
-
-    return DummyModel()
+        return np.full(len(X), self.class_value, dtype=int)
 
 
 def _make_dataset():
-    X_train = np.array([[1, 2], [3, 4], [5, 6]])
-    X_test = np.array([[7, 8], [9, 10]])
-    y_train = np.array([0, 1, 0])
-    y_test = np.array([0, 0])
+    X_train = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]])
+    X_test = np.array([[9.0, 10.0], [11.0, 12.0]])
+    y_train = np.array([0, 0, 1, 1])
+    y_test = np.array([0, 1])
     return X_train, X_test, X_train, X_test, y_train, y_test
 
 
-def test_loading_time_is_recorded(tmp_path):
-    model = _make_dummy_model()
-    with (
-        patch("modeldiet.benchmark.worker.create_model", return_value=model),
-        patch(
-            "modeldiet.benchmark.worker.load_dataset",
-            return_value=_make_dataset(),
-        ),
-        patch(
-            "modeldiet.benchmark.worker.EnvironmentMeasurement.measure",
-            return_value={"python_version": "test"},
-        ),
-    ):
-        results = run_model("lr", tmp_path / "result.json")
-    assert results["loading_time"] >= 0
-    assert model.loading_time == results["loading_time"]
-
-
-def test_training_time_is_recorded(tmp_path):
-    model = _make_dummy_model()
-    with (
-        patch("modeldiet.benchmark.worker.create_model", return_value=model),
-        patch(
-            "modeldiet.benchmark.worker.load_dataset",
-            return_value=_make_dataset(),
-        ),
-        patch(
-            "modeldiet.benchmark.worker.EnvironmentMeasurement.measure",
-            return_value={"python_version": "test"},
-        ),
-    ):
-        results = run_model("lr", tmp_path / "result.json")
-    assert results["training_time"] >= 0
-
-
-def test_accuracy_is_valid(tmp_path):
-    model = _make_dummy_model()
-    with (
-        patch("modeldiet.benchmark.worker.create_model", return_value=model),
-        patch(
-            "modeldiet.benchmark.worker.load_dataset",
-            return_value=_make_dataset(),
-        ),
-        patch(
-            "modeldiet.benchmark.worker.EnvironmentMeasurement.measure",
-            return_value={"python_version": "test"},
-        ),
-    ):
-        results = run_model("lr", tmp_path / "result.json")
-    assert 0.0 <= results["accuracy"] <= 1.0
-
-
-def test_output_json_contains_explicit_measurements(tmp_path):
-    model = _make_dummy_model()
+def _run_dummy_benchmark(tmp_path):
     output_path = tmp_path / "result.json"
     with (
-        patch("modeldiet.benchmark.worker.create_model", return_value=model),
-        patch(
-            "modeldiet.benchmark.worker.load_dataset",
-            return_value=_make_dataset(),
-        ),
-        patch(
-            "modeldiet.benchmark.worker.EnvironmentMeasurement.measure",
-            return_value={"python_version": "test"},
-        ),
+        patch.object(worker, "create_model", return_value=DummyClassifier()),
+        patch.object(worker, "load_dataset", return_value=_make_dataset()),
     ):
-        results = run_model("lr", output_path)
+        result = run_model("lr", output_path)
+    return result, output_path
 
-    assert output_path.exists()
-    with open(output_path, "r") as file:
-        saved_results = json.load(file)
+
+def test_training_and_deserialization_times_are_recorded(tmp_path):
+    results, _ = _run_dummy_benchmark(tmp_path)
+
+    assert results["training_time"] >= 0
+    assert results["loading_time"] >= 0
+
+
+def test_accuracy_and_measurements_come_from_core_profile(tmp_path):
+    results, _ = _run_dummy_benchmark(tmp_path)
+
+    assert results["accuracy"] == 0.5
+    assert results["model"] == "lr"
+    assert results["measurement_details"]["latency"]["sample_count"] == 2
+    assert results["measurement_details"]["latency"]["mean_ms"] >= 0
+    assert (
+        results["measurement_details"]["allocation"][
+            "traced_peak_inference_allocation_mb"
+        ]
+        >= 0
+    )
+    assert (
+        results["measurement_details"]["serialization"]["serialization_format"]
+        == "pickle"
+    )
+
+
+def test_output_json_retains_benchmark_report_fields(tmp_path):
+    results, output_path = _run_dummy_benchmark(tmp_path)
+
+    saved_results = json.loads(output_path.read_text(encoding="utf-8"))
     expected_fields = {
         "model",
         "training_time",
@@ -145,13 +82,6 @@ def test_output_json_contains_explicit_measurements(tmp_path):
         "measurement_details",
         "environment",
     }
-    assert expected_fields.issubset(saved_results.keys())
+    assert expected_fields.issubset(saved_results)
     assert saved_results == results
-    assert saved_results["model"] == "lr"
-
-
-def test_legacy_runner_import_is_a_compatibility_delegate():
-    from modeldiet.profiling import isolated_runner as legacy_runner
-
-    assert legacy_runner.run_model is worker.run_model
-    assert legacy_runner.create_model is worker.create_model
+    assert saved_results["environment"]["python_version"]

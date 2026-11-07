@@ -96,12 +96,13 @@ def test_model_accepts_custom_measurement_objects():
     serialization = FixedMeasurement(
         {"serialized_model_size_mb": 0.25, "serialization_format": "test"}
     )
-    model = Model(
-        latency_measurement=latency,
-        allocation_measurement=allocation,
-        rss_measurement=rss,
-        serialization_measurement=serialization,
-    )
+    with pytest.warns(DeprecationWarning, match="deprecated benchmark compatibility"):
+        model = Model(
+            latency_measurement=latency,
+            allocation_measurement=allocation,
+            rss_measurement=rss,
+            serialization_measurement=serialization,
+        )
     model.clf = DummyEstimator()
 
     result = model.profile_execution(np.ones((4, 2)))

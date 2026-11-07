@@ -10,18 +10,21 @@ Model Diet is currently pre-1.0. The table describes the support intent for the 
 | Measurement extension API | `modeldiet.profiling.BaseMeasurement`, `LatencyMeasurement`, `ProcessRSSMeasurement`, `SerializationMeasurement`, `TracedAllocationMeasurement` | Supported strategy classes. Use the `modeldiet.profiling` imports shown below. |
 | Result records | `modeldiet.result.MetricDefinition`, `MetricValue`, `MeasurementError`, `MeasurementResult`, `ProfileResult` | Supported data structures at these import paths. `ProfileResult` is also exported from `modeldiet`. |
 | Optional benchmark tooling | `modeldiet.benchmark.run_repeated_benchmark` | Provisional pre-1.0 tooling. It runs bundled demonstration data and estimators, and is separate from general-purpose profiling. |
-| Legacy/compatibility | `modeldiet.profiling.benchmark.run_repeated_benchmark`; `modeldiet.profiling.isolated_runner`; `modeldiet.model.Model`; `modeldiet.models.lr.LogisticRegressionModel`; `modeldiet.models.rf.RandomForestModel`; `modeldiet.models.xgb.XGBoostModel`; `modeldiet.report.Report`; `modeldiet.driver.main` | Existing import paths and benchmark/demo interfaces. They are not the primary API. No removal or deprecation is announced here. |
+| Legacy/compatibility | `modeldiet.profiling.benchmark.run_repeated_benchmark`; `modeldiet.profiling.isolated_runner` | Compatibility paths for optional benchmark tooling; no warning is issued on import. |
+| Deprecated compatibility | `modeldiet.model.Model`; `modeldiet.models.lr.LogisticRegressionModel`; `modeldiet.models.rf.RandomForestModel`; `modeldiet.models.xgb.XGBoostModel`; `modeldiet.report.Report`; `modeldiet.driver.main` | Existing imports continue to work. Instantiating the model/wrapper/report classes or calling `driver.main()` emits `DeprecationWarning`. Removal will not occur before 1.0.0. |
 | Internal implementation | `modeldiet.api`, `modeldiet.profiling.orchestrator`; `modeldiet.benchmark.worker.create_model`, `load_dataset`, `run_model`, `main`; `modeldiet.benchmark.statistics.calculate_statistics`, `summarize_runs`; `environment.collect_environment`, `EnvironmentMeasurement`; private helpers such as `_definition` | Implementation details without a compatibility promise. |
 
 `profile()` and `ProfileResult` are the recommended way to profile a user's own fitted model. Import built-in strategies from `modeldiet.profiling`. Import result record types other than `ProfileResult` from `modeldiet.result`; these types are not root-level exports. Import the benchmark helper from `modeldiet.benchmark`. The old `modeldiet.profiling.benchmark` path remains as a compatibility shim.
 
-Benchmark implementation modules now live under `modeldiet.benchmark`: the worker is `modeldiet.benchmark.worker`, the mutable compatibility model is `modeldiet.benchmark.model.Model`, report implementation is `modeldiet.benchmark.report.Report`, and demonstration estimators are under `modeldiet.benchmark.models`. Previous `modeldiet.model`, `modeldiet.report`, `modeldiet.models.*`, and `modeldiet.profiling.isolated_runner` import paths remain as thin shims. Both `python -m modeldiet.benchmark.worker` and the legacy `python -m modeldiet.profiling.isolated_runner` command are supported.
+Benchmark implementation modules now live under `modeldiet.benchmark`: the worker is `modeldiet.benchmark.worker`, legacy model/report implementations are under `modeldiet.benchmark.model` and `modeldiet.benchmark.report`, and demonstration estimators are under `modeldiet.benchmark.models`. Previous `modeldiet.model`, `modeldiet.report`, `modeldiet.models.*`, and `modeldiet.profiling.isolated_runner` import paths remain as thin shims. Both `python -m modeldiet.benchmark.worker` and the legacy `python -m modeldiet.profiling.isolated_runner` command are supported.
 
 ## Compatibility policy
 
 Model Diet is version `0.x`, so its API is not yet frozen. We will still prefer backward-compatible changes and will call out intentional breaking changes in release notes. Existing users may rely on documented paths and on established importable compatibility interfaces, so pre-1.0 status alone is not a reason to remove them. Where practical, a breaking pre-1.0 change should include a migration note.
 
 For future 1.x releases, supported public imports, constructors, method signatures, result fields, metric identifiers, and units will be preserved across compatible releases. A supported interface will not be removed or renamed without advance deprecation and migration guidance; intentional breaking public API changes require a major version bump. This policy is an intent, not a promise that every platform, model library, or runtime measurement will behave identically.
+
+The legacy `Model`, estimator wrappers, `Report`, and `driver.main()` are deprecated in the unreleased 0.1.0 line. Deprecation warnings are emitted when these classes are instantiated or `driver.main()` is called—not when their modules are imported. Their import paths remain usable through the 0.x series; removal will not occur before 1.0.0, with any removal called out in release notes. `run_repeated_benchmark()` and the old benchmark/worker module paths remain available as benchmark compatibility interfaces and are not deprecated by this change.
 
 `ProfileResult` currently uses JSON schema version 1 (`schema_version`). Breaking changes to JSON field names, types, or interpretation must be explicitly versioned with a schema-version change and migration guidance. Adding compatible fields may be possible without changing the schema version, but consumers should ignore fields they do not recognize. Metric identifiers and units are part of the result contract; their meaning must not be silently changed.
 
@@ -145,3 +148,34 @@ from modeldiet.benchmark import run_repeated_benchmark
 ```
 
 It trains built-in demonstration estimators on a bundled scikit-learn dataset. It is not a way to profile arbitrary user models; use `profile()` for that. The former `modeldiet.profiling.benchmark` import path and `modeldiet.profiling.isolated_runner` CLI remain available as compatibility shims. Installation extras are described in the [application guide](application.md#optional-benchmark-runner).
+
+## Migrating from legacy benchmark model wrappers
+
+The legacy `Model` wrapper and estimator-specific subclasses store mutable measurement values. Use an ordinary fitted estimator and the core result object instead:
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+
+from modeldiet import profile
+from modeldiet.profiling import (
+    LatencyMeasurement,
+    ProcessRSSMeasurement,
+    SerializationMeasurement,
+    TracedAllocationMeasurement,
+)
+
+estimator = RandomForestClassifier(random_state=7).fit(X_train, y_train)
+result = profile(
+    estimator,
+    X_test,
+    measurements=[
+        LatencyMeasurement(),
+        TracedAllocationMeasurement(),
+        ProcessRSSMeasurement(),
+        SerializationMeasurement(),
+    ],
+)
+mean_ms = result.measurements["latency"].metrics["mean_ms"].value
+```
+
+Use `run_repeated_benchmark()` for the bundled demonstration workflow and its summary output. `Report` is deprecated; the benchmark worker already prints its report and writes JSON. Replace `driver.main()` with explicit `run_repeated_benchmark(model_name=..., repetitions=...)` calls for the models you want to run.

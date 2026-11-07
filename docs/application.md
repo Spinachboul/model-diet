@@ -30,6 +30,7 @@ run_repeated_benchmark("lr", repetitions=1, output_dir="benchmark-output")
 
 The core `modeldiet` installation does not include scikit-learn or XGBoost. Profiling your own model with `profile()` requires neither library.
 The old `modeldiet.profiling.benchmark` import path remains available as a compatibility shim.
+For the legacy model wrappers, `Report`, and `driver.main()` deprecation details and migration examples, see the [API compatibility policy](api.md#api-stability-and-support-tiers).
 
 ## Profile a fitted model
 

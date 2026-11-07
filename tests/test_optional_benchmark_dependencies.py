@@ -61,7 +61,6 @@ def test_new_benchmark_package_and_runner_do_not_import_optional_libraries(tmp_p
 
 @pytest.mark.parametrize("model_name", ["lr", "rf"])
 def test_non_xgboost_benchmark_does_not_attempt_xgboost_import(model_name, tmp_path):
-    other_model = "rf" if model_name == "lr" else "lr"
     _run_isolated(
         f"""
         import importlib.abc
@@ -76,9 +75,14 @@ def test_non_xgboost_benchmark_does_not_attempt_xgboost_import(model_name, tmp_p
         from modeldiet.benchmark.worker import create_model
 
         model = create_model({model_name!r})
-        assert model.clf is not None
-        assert "modeldiet.benchmark.models.{model_name}" in sys.modules
-        assert "modeldiet.benchmark.models.{other_model}" not in sys.modules
+        expected_module = (
+            "sklearn.linear_model._logistic"
+            if {model_name!r} == "lr"
+            else "sklearn.ensemble._forest"
+        )
+        assert model.__class__.__module__ == expected_module
+        assert "modeldiet.benchmark.models.lr" not in sys.modules
+        assert "modeldiet.benchmark.models.rf" not in sys.modules
         assert "modeldiet.benchmark.models.xgb" not in sys.modules
         """,
         tmp_path,
@@ -91,7 +95,7 @@ def test_xgboost_model_creation_when_dependency_is_installed():
     from modeldiet.benchmark.worker import create_model
 
     model = create_model("xgb")
-    assert model.clf.__class__.__name__ == "XGBClassifier"
+    assert model.__class__.__name__ == "XGBClassifier"
 
 
 def test_missing_xgboost_has_install_guidance_and_preserves_cause(tmp_path):

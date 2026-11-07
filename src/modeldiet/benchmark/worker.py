@@ -7,26 +7,30 @@ import traceback
 from pathlib import Path
 
 from sklearn.datasets import load_breast_cancer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from modeldiet.profiling.environment import EnvironmentMeasurement
+from modeldiet import profile
+from modeldiet.profiling import (
+    LatencyMeasurement,
+    ProcessRSSMeasurement,
+    SerializationMeasurement,
+    TracedAllocationMeasurement,
+)
 
 
 def create_model(model_name):
     """Create one of the estimators used by the repository demonstration."""
     if model_name == "lr":
-        from modeldiet.benchmark.models.lr import LogisticRegressionModel
-
-        return LogisticRegressionModel(C=1.0, max_iter=1000)
+        return LogisticRegression(C=1.0, max_iter=1000)
     if model_name == "rf":
-        from modeldiet.benchmark.models.rf import RandomForestModel
-
-        return RandomForestModel(n_estimators=100, max_depth=None)
+        return RandomForestClassifier(n_estimators=100, max_depth=None)
     if model_name == "xgb":
         try:
-            from modeldiet.benchmark.models.xgb import XGBoostModel
+            from xgboost import XGBClassifier
         except ModuleNotFoundError as exc:
             if exc.name != "xgboost":
                 raise
@@ -35,7 +39,7 @@ def create_model(model_name):
                 'Install it with `python -m pip install "modeldiet[benchmark-xgboost]"`.'
             ) from exc
 
-        return XGBoostModel(n_estimators=100, max_depth=6, learning_rate=0.3)
+        return XGBClassifier(n_estimators=100, max_depth=6, learning_rate=0.3)
     raise ValueError(f"Unsupported model: {model_name}")
 
 
@@ -66,47 +70,71 @@ def run_model(model_name, output_path):
         train_data, test_data = X_train, X_test
 
     training_start = time.perf_counter()
-    model.clf.fit(train_data, y_train)
+    model.fit(train_data, y_train)
     training_time = time.perf_counter() - training_start
     print(f"\nTraining Time: {training_time:.6f} seconds")
 
     # This measures pickle deserialization only, not process startup/imports.
     with tempfile.NamedTemporaryFile(suffix=".pkl") as temp_file:
         with open(temp_file.name, "wb") as file:
-            pickle.dump(model.clf, file)
+            pickle.dump(model, file)
         load_start = time.perf_counter()
         with open(temp_file.name, "rb") as file:
-            model.clf = pickle.load(file)
-        model.loading_time = time.perf_counter() - load_start
+            model = pickle.load(file)
+        loading_time = time.perf_counter() - load_start
 
-    print(f"\nModel Deserialization Time: {model.loading_time:.6f} seconds")
+    print(f"\nModel Deserialization Time: {loading_time:.6f} seconds")
 
-    # Each strategy performs an independent pass. Latency is measured without
-    # tracemalloc; Python allocations and RSS are collected in separate passes.
-    measurements = model.profile_execution(test_data)
-    predictions = model.clf.predict(test_data)
+    result = profile(
+        model,
+        test_data,
+        measurements=[
+            LatencyMeasurement(),
+            TracedAllocationMeasurement(),
+            ProcessRSSMeasurement(),
+            SerializationMeasurement(),
+        ],
+        include_environment=True,
+    )
+    predictions = model.predict(test_data)
     accuracy = accuracy_score(y_test, predictions)
-    environment = EnvironmentMeasurement().measure()
+
+    def values(name):
+        return {
+            key: metric.value
+            for key, metric in result.measurements[name].metrics.items()
+        }
+
+    latency = values("latency")
+    allocation = values("python_traced_allocation")
+    process_memory = values("process_rss")
+    serialization = values("pickle_size")
+    measurement_details = {
+        "latency": latency,
+        "allocation": allocation,
+        "process_memory": process_memory,
+        "serialization": serialization,
+    }
 
     results = {
         "model": model_name,
         "training_time": float(training_time),
-        "loading_time": float(model.loading_time),
+        "loading_time": float(loading_time),
         "accuracy": float(accuracy),
-        "mean_inference_latency": float(model.mean_inference_latency),
-        "p50_latency": float(model.p50_latency),
-        "p90_latency": float(model.p90_latency),
-        "p95_latency": float(model.p95_latency),
-        "p99_latency": float(model.p99_latency),
+        "mean_inference_latency": float(latency["mean_ms"]),
+        "p50_latency": float(latency["p50_ms"]),
+        "p90_latency": float(latency["p90_ms"]),
+        "p95_latency": float(latency["p95_ms"]),
+        "p99_latency": float(latency["p99_ms"]),
         "traced_peak_inference_allocation_mb": float(
-            model.traced_peak_inference_allocation_mb
+            allocation["traced_peak_inference_allocation_mb"]
         ),
-        "rss_before_inference_mb": float(model.rss_before_inference_mb),
-        "rss_after_inference_mb": float(model.rss_after_inference_mb),
-        "rss_delta_mb": float(model.rss_delta_mb),
-        "serialized_model_size": float(model.serialized_model_size),
-        "measurement_details": measurements,
-        "environment": environment,
+        "rss_before_inference_mb": float(process_memory["rss_before_inference_mb"]),
+        "rss_after_inference_mb": float(process_memory["rss_after_inference_mb"]),
+        "rss_delta_mb": float(process_memory["rss_delta_mb"]),
+        "serialized_model_size": float(serialization["serialized_model_size_mb"]),
+        "measurement_details": measurement_details,
+        "environment": result.environment,
     }
 
     output_path = Path(output_path)
@@ -119,19 +147,23 @@ def run_model(model_name, output_path):
     print("=" * 60)
     print(f"Accuracy                         : {accuracy * 100:.2f}%")
     print(f"Training Time                    : {training_time:.6f} sec")
-    print(f"Model Deserialization Time       : {model.loading_time:.6f} sec")
-    print(f"Mean Inference Latency           : {model.mean_inference_latency:.4f} ms")
-    print(f"P99 Latency                      : {model.p99_latency:.4f} ms")
+    print(f"Model Deserialization Time       : {loading_time:.6f} sec")
+    print(f"Mean Inference Latency           : {latency['mean_ms']:.4f} ms")
+    print(f"P99 Latency                      : {latency['p99_ms']:.4f} ms")
     print(
         "Traced Peak Inference Allocation: "
-        f"{model.traced_peak_inference_allocation_mb:.4f} MB"
+        f"{allocation['traced_peak_inference_allocation_mb']:.4f} MB"
     )
     print(
         "Process RSS Before / After     : "
-        f"{model.rss_before_inference_mb:.2f} / {model.rss_after_inference_mb:.2f} MB"
+        f"{process_memory['rss_before_inference_mb']:.2f} / "
+        f"{process_memory['rss_after_inference_mb']:.2f} MB"
     )
-    print(f"Process RSS Delta                : {model.rss_delta_mb:.4f} MB")
-    print(f"Pickle Serialized Model Size     : {model.serialized_model_size:.4f} MB")
+    print(f"Process RSS Delta                : {process_memory['rss_delta_mb']:.4f} MB")
+    print(
+        "Pickle Serialized Model Size   : "
+        f"{serialization['serialized_model_size_mb']:.4f} MB"
+    )
     print("\nResults saved to:", output_path)
     return results
 

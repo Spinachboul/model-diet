@@ -1,7 +1,17 @@
+import warnings
+
 from modeldiet.benchmark import run_repeated_benchmark
 
 
 def main():
+    warnings.warn(
+        "modeldiet.driver.main is deprecated. Call "
+        "modeldiet.benchmark.run_repeated_benchmark() once per selected model. "
+        "The driver will remain available through the 0.x series and will not "
+        "be removed before 1.0.0.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
     models = ["lr", "rf", "xgb"]
 

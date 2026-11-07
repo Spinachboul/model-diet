@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
+from modeldiet import profile
 from modeldiet.profiling.measurements import (
     BaseMeasurement,
     LatencyMeasurement,
@@ -11,6 +13,17 @@ from modeldiet.profiling.measurements import (
     SerializationMeasurement,
     TracedAllocationMeasurement,
 )
+
+
+class _NamedMeasurement(BaseMeasurement):
+    """Give a legacy strategy slot a stable name for the core profile API."""
+
+    def __init__(self, name: str, measurement: BaseMeasurement) -> None:
+        self.name = name
+        self.measurement = measurement
+
+    def measure(self, model: Any, X: Any = None) -> dict[str, Any]:
+        return self.measurement.measure(model, X)
 
 
 class Model:
@@ -36,6 +49,15 @@ class Model:
         rss_measurement: BaseMeasurement | None = None,
         serialization_measurement: BaseMeasurement | None = None,
     ) -> None:
+        warnings.warn(
+            f"{type(self).__name__} is a deprecated benchmark compatibility "
+            "interface. Use an ordinary fitted estimator with "
+            "modeldiet.profile(estimator, X) instead. The legacy model "
+            "interfaces will remain available through the 0.x series and "
+            "will not be removed before 1.0.0.",
+            DeprecationWarning,
+            stacklevel=3 if type(self) is not Model else 2,
+        )
         self.loading_time = loading_time
         self.mean_inference_latency = mean_inference_latency
         self.p50_latency = p50_latency
@@ -73,16 +95,30 @@ class Model:
     def profile_execution(
         self, X_test: Any, load_start_time: float | None = None
     ) -> dict[str, dict[str, Any]]:
-        """Run each measurement as an independent experiment.
+        """Run each measurement through the core profiling API.
 
         ``load_start_time`` remains accepted for backwards compatibility. An
         already-loaded model has no measurable historical load duration.
         """
         del load_start_time
-        latency = self.latency_measurement.measure(self.clf, X_test)
-        allocation = self.allocation_measurement.measure(self.clf, X_test)
-        process_memory = self.rss_measurement.measure(self.clf, X_test)
-        serialization = self.serialization_measurement.measure(self.clf)
+        named_measurements = [
+            _NamedMeasurement("latency", self.latency_measurement),
+            _NamedMeasurement("python_traced_allocation", self.allocation_measurement),
+            _NamedMeasurement("process_rss", self.rss_measurement),
+            _NamedMeasurement("pickle_size", self.serialization_measurement),
+        ]
+        result = profile(self.clf, X_test, measurements=named_measurements)
+
+        def values(name: str) -> dict[str, Any]:
+            return {
+                key: metric.value
+                for key, metric in result.measurements[name].metrics.items()
+            }
+
+        latency = values("latency")
+        allocation = values("python_traced_allocation")
+        process_memory = values("process_rss")
+        serialization = values("pickle_size")
 
         self.mean_inference_latency = latency["mean_ms"]
         self.p50_latency = latency["p50_ms"]

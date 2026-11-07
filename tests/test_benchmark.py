@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from subprocess import CompletedProcess
 
+from modeldiet.benchmark import runner
 from modeldiet.profiling import benchmark
 
 
@@ -19,6 +20,10 @@ def test_repeated_benchmark_uses_configured_output_directory(tmp_path, monkeypat
 
     assert (output_dir / "raw_runs" / "lr_run_1.json").is_file()
     assert (output_dir / "summaries" / "lr_summary.json").is_file()
+
+
+def test_legacy_benchmark_import_is_a_compatibility_delegate():
+    assert benchmark.run_repeated_benchmark is runner.run_repeated_benchmark
 
 
 def test_repeated_benchmark_defaults_to_working_directory_results(

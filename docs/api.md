@@ -9,11 +9,13 @@ Model Diet is currently pre-1.0. The table describes the support intent for the 
 | Stable core | `modeldiet.profile`, `modeldiet.ProfileResult` | Supported primary API. |
 | Measurement extension API | `modeldiet.profiling.BaseMeasurement`, `LatencyMeasurement`, `ProcessRSSMeasurement`, `SerializationMeasurement`, `TracedAllocationMeasurement` | Supported strategy classes. Use the `modeldiet.profiling` imports shown below. |
 | Result records | `modeldiet.result.MetricDefinition`, `MetricValue`, `MeasurementError`, `MeasurementResult`, `ProfileResult` | Supported data structures at these import paths. `ProfileResult` is also exported from `modeldiet`. |
-| Optional benchmark tooling | `modeldiet.profiling.benchmark.run_repeated_benchmark` | Provisional pre-1.0 tooling. It runs bundled demonstration data and estimators, and is separate from general-purpose profiling. |
-| Legacy/compatibility | `modeldiet.model.Model`; `modeldiet.models.lr.LogisticRegressionModel`; `modeldiet.models.rf.RandomForestModel`; `modeldiet.models.xgb.XGBoostModel`; `modeldiet.report.Report`; `modeldiet.driver.main` | Existing compatibility or benchmark/demo interfaces. They are not the primary API. No removal or deprecation is announced here. |
-| Internal implementation | `modeldiet.api`, `modeldiet.profiling.orchestrator`; `isolated_runner.create_model`, `load_dataset`, `run_model`, `main`; `statistics.calculate_statistics`, `summarize_runs`; `environment.collect_environment`, `EnvironmentMeasurement`; private helpers such as `_definition` | Implementation details without a compatibility promise. |
+| Optional benchmark tooling | `modeldiet.benchmark.run_repeated_benchmark` | Provisional pre-1.0 tooling. It runs bundled demonstration data and estimators, and is separate from general-purpose profiling. |
+| Legacy/compatibility | `modeldiet.profiling.benchmark.run_repeated_benchmark`; `modeldiet.profiling.isolated_runner`; `modeldiet.model.Model`; `modeldiet.models.lr.LogisticRegressionModel`; `modeldiet.models.rf.RandomForestModel`; `modeldiet.models.xgb.XGBoostModel`; `modeldiet.report.Report`; `modeldiet.driver.main` | Existing import paths and benchmark/demo interfaces. They are not the primary API. No removal or deprecation is announced here. |
+| Internal implementation | `modeldiet.api`, `modeldiet.profiling.orchestrator`; `modeldiet.benchmark.worker.create_model`, `load_dataset`, `run_model`, `main`; `modeldiet.benchmark.statistics.calculate_statistics`, `summarize_runs`; `environment.collect_environment`, `EnvironmentMeasurement`; private helpers such as `_definition` | Implementation details without a compatibility promise. |
 
-`profile()` and `ProfileResult` are the recommended way to profile a user's own fitted model. Import built-in strategies from `modeldiet.profiling`. Import result record types other than `ProfileResult` from `modeldiet.result`; these types are not root-level exports. The benchmark helper must be imported from its full path, `modeldiet.profiling.benchmark`.
+`profile()` and `ProfileResult` are the recommended way to profile a user's own fitted model. Import built-in strategies from `modeldiet.profiling`. Import result record types other than `ProfileResult` from `modeldiet.result`; these types are not root-level exports. Import the benchmark helper from `modeldiet.benchmark`. The old `modeldiet.profiling.benchmark` path remains as a compatibility shim.
+
+Benchmark implementation modules now live under `modeldiet.benchmark`: the worker is `modeldiet.benchmark.worker`, the mutable compatibility model is `modeldiet.benchmark.model.Model`, report implementation is `modeldiet.benchmark.report.Report`, and demonstration estimators are under `modeldiet.benchmark.models`. Previous `modeldiet.model`, `modeldiet.report`, `modeldiet.models.*`, and `modeldiet.profiling.isolated_runner` import paths remain as thin shims. Both `python -m modeldiet.benchmark.worker` and the legacy `python -m modeldiet.profiling.isolated_runner` command are supported.
 
 ## Compatibility policy
 
@@ -136,10 +138,10 @@ Custom measurement identifiers are derived from the strategy name and metric key
 
 ## Optional benchmark helper
 
-The repeated demo benchmark is imported separately and is provisional while the package is pre-1.0:
+The repeated demo benchmark is imported separately from `modeldiet.benchmark` and is provisional while the package is pre-1.0:
 
 ```python
-from modeldiet.profiling.benchmark import run_repeated_benchmark
+from modeldiet.benchmark import run_repeated_benchmark
 ```
 
-It trains built-in demonstration estimators on a bundled scikit-learn dataset. It is not a way to profile arbitrary user models; use `profile()` for that. Installation extras are described in the [application guide](application.md#optional-benchmark-runner).
+It trains built-in demonstration estimators on a bundled scikit-learn dataset. It is not a way to profile arbitrary user models; use `profile()` for that. The former `modeldiet.profiling.benchmark` import path and `modeldiet.profiling.isolated_runner` CLI remain available as compatibility shims. Installation extras are described in the [application guide](application.md#optional-benchmark-runner).

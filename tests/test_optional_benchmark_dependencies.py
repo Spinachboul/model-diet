@@ -44,6 +44,21 @@ def test_importing_isolated_runner_does_not_import_xgboost(tmp_path):
     )
 
 
+def test_new_benchmark_package_and_runner_do_not_import_optional_libraries(tmp_path):
+    _run_isolated(
+        """
+        import sys
+        import modeldiet.benchmark
+        import modeldiet.benchmark.runner
+
+        assert callable(modeldiet.benchmark.run_repeated_benchmark)
+        assert "sklearn" not in sys.modules
+        assert "xgboost" not in sys.modules
+        """,
+        tmp_path,
+    )
+
+
 @pytest.mark.parametrize("model_name", ["lr", "rf"])
 def test_non_xgboost_benchmark_does_not_attempt_xgboost_import(model_name, tmp_path):
     other_model = "rf" if model_name == "lr" else "lr"
@@ -58,13 +73,13 @@ def test_non_xgboost_benchmark_does_not_attempt_xgboost_import(model_name, tmp_p
                     raise AssertionError("unexpected XGBoost import: " + fullname)
 
         sys.meta_path.insert(0, RejectXGBoost())
-        from modeldiet.profiling.isolated_runner import create_model
+        from modeldiet.benchmark.worker import create_model
 
         model = create_model({model_name!r})
         assert model.clf is not None
-        assert "modeldiet.models.{model_name}" in sys.modules
-        assert "modeldiet.models.{other_model}" not in sys.modules
-        assert "modeldiet.models.xgb" not in sys.modules
+        assert "modeldiet.benchmark.models.{model_name}" in sys.modules
+        assert "modeldiet.benchmark.models.{other_model}" not in sys.modules
+        assert "modeldiet.benchmark.models.xgb" not in sys.modules
         """,
         tmp_path,
     )
@@ -73,7 +88,7 @@ def test_non_xgboost_benchmark_does_not_attempt_xgboost_import(model_name, tmp_p
 def test_xgboost_model_creation_when_dependency_is_installed():
     pytest.importorskip("xgboost")
 
-    from modeldiet.profiling.isolated_runner import create_model
+    from modeldiet.benchmark.worker import create_model
 
     model = create_model("xgb")
     assert model.clf.__class__.__name__ == "XGBClassifier"
@@ -91,7 +106,7 @@ def test_missing_xgboost_has_install_guidance_and_preserves_cause(tmp_path):
                     raise ModuleNotFoundError("No module named 'xgboost'", name="xgboost")
 
         sys.meta_path.insert(0, MissingXGBoost())
-        from modeldiet.profiling.isolated_runner import create_model
+        from modeldiet.benchmark.worker import create_model
 
         try:
             create_model("xgb")
@@ -118,7 +133,7 @@ def test_unrelated_xgboost_import_error_is_not_rewritten(tmp_path):
                     raise ImportError("broken XGBoost installation")
 
         sys.meta_path.insert(0, BrokenXGBoost())
-        from modeldiet.profiling.isolated_runner import create_model
+        from modeldiet.benchmark.worker import create_model
 
         try:
             create_model("xgb")
@@ -133,7 +148,7 @@ def test_unrelated_xgboost_import_error_is_not_rewritten(tmp_path):
 
 
 def test_unsupported_model_name_still_raises_value_error():
-    from modeldiet.profiling.isolated_runner import create_model
+    from modeldiet.benchmark.worker import create_model
 
     with pytest.raises(ValueError, match="Unsupported model: unsupported"):
         create_model("unsupported")

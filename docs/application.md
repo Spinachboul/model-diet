@@ -23,12 +23,13 @@ python -m pip install "modeldiet[demo]"
 The benchmark runner uses a bundled scikit-learn dataset. Install `modeldiet[benchmark]` to run its Logistic Regression or Random Forest benchmarks. XGBoost benchmarks need both dependencies, available as `modeldiet[benchmark-xgboost]`. The existing `modeldiet[demo]` extra remains available and includes scikit-learn and XGBoost.
 
 ```python
-from modeldiet.profiling.benchmark import run_repeated_benchmark
+from modeldiet.benchmark import run_repeated_benchmark
 
 run_repeated_benchmark("lr", repetitions=1, output_dir="benchmark-output")
 ```
 
 The core `modeldiet` installation does not include scikit-learn or XGBoost. Profiling your own model with `profile()` requires neither library.
+The old `modeldiet.profiling.benchmark` import path remains available as a compatibility shim.
 
 ## Profile a fitted model
 

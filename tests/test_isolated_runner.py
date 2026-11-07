@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import numpy as np
 
+from modeldiet.benchmark import worker
 from modeldiet.profiling.isolated_runner import run_model
 
 
@@ -58,13 +59,13 @@ def _make_dataset():
 def test_loading_time_is_recorded(tmp_path):
     model = _make_dummy_model()
     with (
-        patch("modeldiet.profiling.isolated_runner.create_model", return_value=model),
+        patch("modeldiet.benchmark.worker.create_model", return_value=model),
         patch(
-            "modeldiet.profiling.isolated_runner.load_dataset",
+            "modeldiet.benchmark.worker.load_dataset",
             return_value=_make_dataset(),
         ),
         patch(
-            "modeldiet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+            "modeldiet.benchmark.worker.EnvironmentMeasurement.measure",
             return_value={"python_version": "test"},
         ),
     ):
@@ -76,13 +77,13 @@ def test_loading_time_is_recorded(tmp_path):
 def test_training_time_is_recorded(tmp_path):
     model = _make_dummy_model()
     with (
-        patch("modeldiet.profiling.isolated_runner.create_model", return_value=model),
+        patch("modeldiet.benchmark.worker.create_model", return_value=model),
         patch(
-            "modeldiet.profiling.isolated_runner.load_dataset",
+            "modeldiet.benchmark.worker.load_dataset",
             return_value=_make_dataset(),
         ),
         patch(
-            "modeldiet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+            "modeldiet.benchmark.worker.EnvironmentMeasurement.measure",
             return_value={"python_version": "test"},
         ),
     ):
@@ -93,13 +94,13 @@ def test_training_time_is_recorded(tmp_path):
 def test_accuracy_is_valid(tmp_path):
     model = _make_dummy_model()
     with (
-        patch("modeldiet.profiling.isolated_runner.create_model", return_value=model),
+        patch("modeldiet.benchmark.worker.create_model", return_value=model),
         patch(
-            "modeldiet.profiling.isolated_runner.load_dataset",
+            "modeldiet.benchmark.worker.load_dataset",
             return_value=_make_dataset(),
         ),
         patch(
-            "modeldiet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+            "modeldiet.benchmark.worker.EnvironmentMeasurement.measure",
             return_value={"python_version": "test"},
         ),
     ):
@@ -111,13 +112,13 @@ def test_output_json_contains_explicit_measurements(tmp_path):
     model = _make_dummy_model()
     output_path = tmp_path / "result.json"
     with (
-        patch("modeldiet.profiling.isolated_runner.create_model", return_value=model),
+        patch("modeldiet.benchmark.worker.create_model", return_value=model),
         patch(
-            "modeldiet.profiling.isolated_runner.load_dataset",
+            "modeldiet.benchmark.worker.load_dataset",
             return_value=_make_dataset(),
         ),
         patch(
-            "modeldiet.profiling.isolated_runner.EnvironmentMeasurement.measure",
+            "modeldiet.benchmark.worker.EnvironmentMeasurement.measure",
             return_value={"python_version": "test"},
         ),
     ):
@@ -147,3 +148,10 @@ def test_output_json_contains_explicit_measurements(tmp_path):
     assert expected_fields.issubset(saved_results.keys())
     assert saved_results == results
     assert saved_results["model"] == "lr"
+
+
+def test_legacy_runner_import_is_a_compatibility_delegate():
+    from modeldiet.profiling import isolated_runner as legacy_runner
+
+    assert legacy_runner.run_model is worker.run_model
+    assert legacy_runner.create_model is worker.create_model

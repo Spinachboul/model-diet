@@ -2,13 +2,16 @@
 
 import json
 import math
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 from sklearn.ensemble import RandomForestClassifier
 
 from modeldiet import ProfileResult, profile
-from modeldiet.profiling.benchmark import run_repeated_benchmark
+from modeldiet.benchmark import run_repeated_benchmark
 
 
 def test_fitted_random_forest_profile_and_exports(tmp_path):
@@ -108,3 +111,42 @@ def test_real_logistic_regression_benchmark_subprocess(tmp_path, monkeypatch):
     }
     assert generated_files == {raw_path.resolve(), summary_path.resolve()}
     assert not (Path.cwd() / "results").exists()
+
+
+def test_real_random_forest_benchmark_subprocess(tmp_path):
+    output_dir = tmp_path / "rf-benchmark"
+    run_repeated_benchmark("rf", repetitions=1, output_dir=output_dir)
+
+    raw_path = output_dir / "raw_runs" / "rf_run_1.json"
+    summary_path = output_dir / "summaries" / "rf_summary.json"
+    raw = json.loads(raw_path.read_text(encoding="utf-8"))
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert raw["model"] == "rf"
+    assert math.isfinite(raw["mean_inference_latency"])
+    assert raw["mean_inference_latency"] >= 0
+    assert summary["mean_inference_latency"]["mean"] >= 0
+
+
+@pytest.mark.parametrize(
+    "module_path",
+    ["modeldiet.profiling.isolated_runner", "modeldiet.benchmark.worker"],
+)
+def test_benchmark_worker_cli_paths_run_successfully(module_path, tmp_path):
+    output_path = tmp_path / (module_path.rsplit(".", 1)[-1] + ".json")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            module_path,
+            "--model",
+            "lr",
+            "--output",
+            str(output_path),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert json.loads(output_path.read_text(encoding="utf-8"))["model"] == "lr"

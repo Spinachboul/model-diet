@@ -1,41 +1,58 @@
 # Model Diet
 
-Model Diet profiles inference characteristics of an already-fitted Python model and returns structured, exportable results.
+**Profile the inference cost of a fitted Python model before deployment.**
 
-For a detailed walkthrough, see the [application guide](docs/application.md) or the [hosted documentation source](docs/index.md).
-For supported imports and compatibility expectations, see the [API reference](docs/api.md).
+[![CI](https://github.com/modeldiet/modeldiet/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/modeldiet/modeldiet/actions/workflows/ci.yml)
+[![Documentation](https://github.com/modeldiet/modeldiet/actions/workflows/docs.yml/badge.svg?branch=master)](https://github.com/modeldiet/modeldiet/actions/workflows/docs.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://github.com/modeldiet/modeldiet/blob/master/pyproject.toml)
+[![License: MIT](https://img.shields.io/github/license/modeldiet/modeldiet)](LICENSE)
 
-## What is Model Diet?
+Model Diet helps ML engineers understand how an already-fitted model behaves at inference time. Give it representative tabular inputs; it returns structured measurements you can inspect or export as JSON and Markdown.
 
-Model Diet is a Python library for measuring model inference behavior on representative input data. It accepts a fitted object with a `predict(X)` method, runs one or more measurement strategies, and returns a `ProfileResult` with metric definitions and values.
+## Install
 
-## Why Model Diet?
-
-Model Diet helps machine learning engineers inspect inference cost before integrating a model into an application. It can help answer questions such as how long single-row predictions take and how much Python-traced memory or process RSS changes during inference.
-
-The default profile measures latency only. It does **not** evaluate model accuracy, compare predictions with labels, or determine whether a model is suitable for a task.
-
-## Installation
-
-The core package requires Python 3.11 or later. Install the distribution with pip:
+**Model Diet is not currently published on production PyPI.** PyPI's [package metadata endpoint](https://pypi.org/pypi/modeldiet/json) returned 404 when checked on November 7, 2026, so `pip install modeldiet` is not a verified installation method. Install from the source repository instead:
 
 ```bash
-python -m pip install modeldiet
+git clone https://github.com/modeldiet/modeldiet.git
+cd modeldiet
+python -m pip install .
 ```
 
-The Quick Start uses scikit-learn, which is an optional demo dependency. Install it with:
+The core package requires Python 3.11+ and depends on NumPy and psutil. It does not require scikit-learn or XGBoost; you can profile a compatible model of your own without those libraries.
+
+The copy-and-run quickstart below uses scikit-learn. Install the demo extra from the repository checkout to run it:
 
 ```bash
-python -m pip install "modeldiet[demo]"
+python -m pip install ".[demo]"
 ```
 
-The repeated benchmark runner is optional tooling. Logistic Regression and Random Forest benchmarks require scikit-learn; install `modeldiet[benchmark]`. XGBoost benchmarks require both scikit-learn and XGBoost; install `modeldiet[benchmark-xgboost]`. The existing `modeldiet[demo]` extra continues to install both libraries for all examples and benchmarks.
+The optional benchmark tools have separate extras:
 
-## Quick Start
+| Install from the repository checkout | Includes | Use |
+| --- | --- | --- |
+| `python -m pip install ".[benchmark]"` | scikit-learn | Logistic Regression and Random Forest benchmark runs |
+| `python -m pip install ".[benchmark-xgboost]"` | scikit-learn and XGBoost | XGBoost benchmark runs |
+| `python -m pip install ".[demo]"` | scikit-learn and XGBoost | All documented demo examples and benchmark types |
 
-This example trains a small classifier, profiles its inference latency, and writes JSON and Markdown reports:
+The test release `0.1.0` is available from [TestPyPI](https://test.pypi.org/project/modeldiet/), but it is not a production release. To try it, let pip use TestPyPI for Model Diet and production PyPI for its dependencies:
+
+```bash
+python -m pip install \
+  --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ \
+  "modeldiet[demo]==0.1.0"
+```
+
+Use the source installation above for development from the repository.
+
+## Quickstart
+
+This trains a small Random Forest, profiles it with the default latency measurement, and writes both report formats. It requires the `demo` extra.
 
 ```python
+from pathlib import Path
+
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 
@@ -48,120 +65,129 @@ y = rng.integers(0, 2, size=100)
 model = RandomForestClassifier(n_estimators=20, random_state=42)
 model.fit(X, y)
 
-result = profile(model=model, X=X)
-print(result.measurements["latency"].metrics["mean_ms"].value)
+result = profile(model=model, X=X, include_environment=True)
+mean_ms = result.measurements["latency"].metrics["mean_ms"].value
+print(f"Mean single-row prediction latency: {mean_ms:.3f} ms")
 
-result.to_json("profile.json")
-result.to_markdown("profile.md")
+output_dir = Path("profile-output")
+output_dir.mkdir(parents=True, exist_ok=True)
+result.to_json(output_dir / "profile.json")
+result.to_markdown(output_dir / "profile.md")
 ```
 
-`profile()` calls `predict()` once per input row for each selected measurement. Pass representative inputs for the prediction workload you want to understand.
+Use representative inputs with the feature layout and preprocessing your fitted model expects. This example generates data only to make the API easy to try.
 
-## Supported Models and Inputs
+## Example result
 
-The model must be fitted and provide a callable `predict(X)` method. Model Diet does not require a particular estimator base class. Scikit-learn estimators are one example; other Python models can be used if their `predict` method accepts the supplied rows.
+Below is an abbreviated view of one run of the quickstart above in a local development environment. The latency values are machine- and workload-specific examples, not performance claims or expected results. Your values will differ.
 
-`X` must contain non-empty, two-dimensional tabular data in one of these forms:
+```text
+model_class: RandomForestClassifier
+input_type: ndarray
+sample_count: 100
+feature_count: 5
 
-- NumPy arrays
-- pandas DataFrames
-- Lists or tuples of rows
+latency.mean    0.633 ms
+latency.p50     0.609 ms
+latency.p90     0.659 ms
+latency.p95     0.676 ms
+latency.p99     0.754 ms
+latency.sample_count  100 count
 
-Rows are passed to `predict()` one at a time with a batch dimension preserved. For a DataFrame, row slices remain DataFrames. Inputs should use the same preprocessing and feature representation expected by the fitted model.
+environment: optional metadata included
+```
 
-## Measurement Metrics
+Each metric also has a definition with its identifier, unit, description, and semantics. The environment field can include Python and platform details, CPU and memory information, selected library versions, and thread environment variables.
 
-By default, `profile()` runs `LatencyMeasurement` only. Each input row is predicted separately, after an optional warmup prediction, and timed without `tracemalloc` enabled.
+## Supported models and inputs
 
-| Metric | Unit | Meaning |
-| --- | --- | --- |
-| `mean_ms` | ms | Mean duration of a single-row prediction. |
-| `p50_ms` | ms | Median single-row prediction duration. |
-| `p90_ms` | ms | 90th percentile single-row prediction duration. |
-| `p95_ms` | ms | 95th percentile single-row prediction duration. |
-| `p99_ms` | ms | 99th percentile single-row prediction duration. |
-| `sample_count` | count | Number of input rows timed. |
+`profile()` accepts an already-fitted Python object with a callable `predict(X)` method. It does not require a particular estimator base class. Inputs must be non-empty two-dimensional tabular data supplied as a NumPy array, pandas DataFrame, or list or tuple of rows. Model Diet passes each row to `predict()` separately, preserving a one-row batch dimension.
 
-Other built-in strategies are available from `modeldiet.profiling`:
+## Measurements
 
-| Strategy | Result fields | Interpretation |
-| --- | --- | --- |
-| `TracedAllocationMeasurement` | `traced_peak_inference_allocation_mb` | Peak Python allocations observed during a separate inference pass. Native allocations not tracked by `tracemalloc` are excluded. |
-| `ProcessRSSMeasurement` | `rss_before_inference_mb`, `rss_after_inference_mb`, `rss_delta_mb` | Whole-process resident memory snapshots before and after a separate inference pass. These are endpoint snapshots, not peak memory or model-only memory. |
-| `SerializationMeasurement` | `serialized_model_size_mb`, `serialization_format` | Size of the model's Python pickle representation. This does not imply the pickle is portable or safe to load. |
+By default, `profile()` runs only `LatencyMeasurement`: it makes one warmup prediction, then times one prediction per input row using `time.perf_counter()` without `tracemalloc` enabled.
 
-Each strategy runs in its own pass. Measurements therefore do not share a single timed execution, and results can vary with hardware, operating system, background load, Python version, and model library configuration.
+| Measurement | Metric identifiers | Units | What the values describe |
+| --- | --- | --- | --- |
+| `LatencyMeasurement` | `latency.mean`, `latency.p50`, `latency.p90`, `latency.p95`, `latency.p99` | ms | Mean and percentiles of single-row prediction durations. `latency.sample_count` is a count. |
+| `TracedAllocationMeasurement` | `python_traced.peak_allocation` | MiB | Peak Python-traced allocations during a separate inference pass; native allocations not tracked by `tracemalloc` are excluded. |
+| `ProcessRSSMeasurement` | `process_rss.before`, `process_rss.after`, `process_rss.delta` | MiB | Whole-process RSS endpoint snapshots and their difference; not model-only memory or peak RSS. |
+| `SerializationMeasurement` | `pickle.size` | MiB | Size of the model's Python pickle representation; not a guarantee that pickle is safe or portable. |
 
-## Understanding `ProfileResult`
+You can select other strategies from `modeldiet.profiling`. Supplying `measurements=[...]` replaces the default list, so include `LatencyMeasurement()` explicitly if you want latency alongside other measurements. Each strategy makes its own pass over the input.
 
-`profile()` returns a `ProfileResult` with:
+## Understanding the results
 
-- `schema_version`: result schema version.
-- `measurements`: mapping of strategy names to `MeasurementResult` objects. Successful results contain metrics; failures recorded with `on_error="record"` contain an error.
-- `model_class` and `model_module`: model type metadata.
-- `input_type`, `sample_count`, and `feature_count`: metadata about the profiling input.
-- `environment`: optional Python, platform, CPU, RAM, and selected library metadata.
-
-For example, read the default latency mean with:
+`profile()` returns a `ProfileResult`. Its `measurements` mapping contains `MeasurementResult` objects. Each metric provides a value and a definition:
 
 ```python
-mean_latency_ms = result.measurements["latency"].metrics["mean_ms"].value
+metric = result.measurements["latency"].metrics["mean_ms"]
+print(metric.value)
+print(metric.definition.identifier, metric.definition.unit)
 ```
 
-Each metric is a `MetricValue` with a numeric `value` and a `definition` containing its identifier, unit, description, and semantics. When a measurement raises an exception, the default `on_error="raise"` raises a `RuntimeError`. Set `on_error="record"` to retain the error in the result and continue with other strategies.
+The result also records the model class and module, input type, sample count, feature count, and schema version. Environment metadata is opt-in through `include_environment=True`. The detailed [application guide](https://modeldiet.github.io/modeldiet/application/) covers error handling, exports, and custom measurement strategies.
 
-## Exporting Results
+## Additional benchmark workflow
 
-Write a versioned JSON structure or a human-readable Markdown report:
+`modeldiet.profile()` measures a model you have already fitted using your own representative data. The separate `modeldiet.benchmark` tools run demonstration workflows: they load a bundled dataset, construct and train a selected estimator, then write raw run and summary JSON files. This benchmark workflow is optional and is not required to use `profile()`.
 
 ```python
-result.to_json("profile.json")
-result.to_markdown("profile.md")
+from modeldiet.benchmark import run_repeated_benchmark
+
+run_repeated_benchmark("lr", repetitions=1, output_dir="benchmark-output")
 ```
 
-Both methods accept a string or `pathlib.Path`. The parent directory must exist. Non-finite floating-point values in JSON are written as `null`.
-
-## Advanced Usage
-
-Select additional built-in measurements and include environment metadata:
-
-```python
-from modeldiet import profile
-from modeldiet.profiling import (
-    ProcessRSSMeasurement,
-    SerializationMeasurement,
-    TracedAllocationMeasurement,
-)
-
-result = profile(
-    model=model,
-    X=X,
-    measurements=[
-        TracedAllocationMeasurement(),
-        ProcessRSSMeasurement(),
-        SerializationMeasurement(),
-    ],
-    include_environment=True,
-)
-```
-
-Latency is not included automatically when you provide `measurements`; include `LatencyMeasurement()` explicitly if you want latency alongside other strategies. Measurement names must be unique. Custom strategies can subclass `BaseMeasurement` and implement `measure(model, X=None)`; custom metric units and semantics are not inferred by Model Diet.
+Use the `[benchmark]` extra for Logistic Regression or Random Forest, and `[benchmark-xgboost]` for XGBoost. Unlike core `profile()`, the demonstration benchmark reports accuracy because it has labels for its bundled dataset. See the [benchmark guide](https://modeldiet.github.io/modeldiet/application/#optional-benchmark-runner) for details.
 
 ## Limitations
 
-- The API expects an already-fitted model with `predict()` and tabular input. It does not train models or assess prediction quality.
-- Latency is measured for individual rows, not batches, concurrent requests, or end-to-end application requests.
-- Memory figures describe Python-traced allocations or whole-process RSS; the package does not currently report GPU memory or peak RSS during inference.
-- Timing depends on the local machine, software stack, and workload. Use consistent conditions when comparing results.
-- Model Diet does not currently provide built-in adapters for PyTorch, TensorFlow, or ONNX Runtime. A compatible `predict()` method is required.
+Model Diet reports inference measurements, not deployment-wide guarantees. In particular, it does **not** measure:
 
-## Contributing
+- Accuracy or prediction quality in the core profiling API.
+- GPU memory.
+- Batch throughput: predictions are timed one row at a time.
+- Concurrent-serving capacity.
+- End-to-end API or network latency.
+- Peak process RSS: RSS values are before-and-after snapshots.
 
-Contributions and issue reports are welcome. For code changes, install the project with its test and demo dependencies and run the test suite:
+Results depend on the model, input data, software stack, machine, and background load. Compare runs under similar conditions and treat these measurements as local observations, not service-level guarantees.
+
+## Documentation
+
+- [Quickstart](https://modeldiet.github.io/modeldiet/quickstart/)
+- [Application guide](https://modeldiet.github.io/modeldiet/application/)
+- [Measurement definitions](https://modeldiet.github.io/modeldiet/measurements/)
+- [Public API and compatibility policy](https://modeldiet.github.io/modeldiet/api/)
+- [Documentation hosting and local build](https://modeldiet.github.io/modeldiet/hosting/)
+
+## Architecture overview
+
+```mermaid
+flowchart LR
+    A[Your fitted model] --> C[profile]
+    B[Representative tabular rows] --> C
+    C --> D[ProfileResult]
+    D --> E[Metric values and definitions]
+    D --> F[JSON export]
+    D --> G[Markdown export]
+    H[Optional demo benchmark] --> I[Bundled dataset and estimator]
+    I --> J[Raw and summary benchmark JSON]
+```
+
+Core profiling accepts your model and input data. The demonstration benchmark is a separate optional workflow with its own bundled dataset and estimators.
+
+## Development and contributions
+
+To work on the project, install its test and demo dependencies from a checkout and run the tests:
 
 ```bash
 python -m pip install -e ".[test,demo]"
 python -m pytest -v
 ```
 
-Please keep changes focused and include tests for changed behavior.
+See [CONTRIBUTING_GUIDE.md](CONTRIBUTING_GUIDE.md) for contribution and documentation instructions. Contributions and issue reports are welcome.
+
+## License
+
+Model Diet is distributed under the [MIT License](LICENSE).
